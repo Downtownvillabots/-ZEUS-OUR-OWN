@@ -1,20 +1,3 @@
-DOWNTOWN VILLA
-File 9: main.py
-
-Application entry point.
-
-Architecture:
-    main.py
-        -> core.lifecycle
-        -> core.runtime
-        -> core.bot
-        -> config
-        -> future feature modules
-
-This file coordinates startup and shutdown only.
-Feature implementations belong in their own modules.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -29,18 +12,15 @@ LOGGER = get_logger(__name__)
 
 
 async def run() -> None:
-    """Run DOWNTOWN VILLA until a shutdown signal is received."""
     runtime = get_runtime()
     lifecycle = get_lifecycle()
 
     stop_event = asyncio.Event()
 
     def request_shutdown() -> None:
-        if stop_event.is_set():
-            return
-
-        LOGGER.info("DOWNTOWN VILLA shutdown requested.")
-        stop_event.set()
+        if not stop_event.is_set():
+            LOGGER.info("DOWNTOWN VILLA shutdown requested.")
+            stop_event.set()
 
     loop = asyncio.get_running_loop()
 
@@ -78,7 +58,6 @@ async def run() -> None:
 
 
 def main() -> None:
-    """Synchronous process entry point."""
     try:
         asyncio.run(run())
 
