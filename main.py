@@ -1,10 +1,3 @@
-"""
-DOWNTOWN VILLA
-Application entry point.
-
-Keep this file small. Feature code belongs under functions/.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -13,6 +6,7 @@ import signal
 from app.config import get_config
 from app.logging import get_logger
 from app.runtime import create_runtime
+from app.web import start_health_server
 from functions.loader import load_functions
 
 
@@ -36,20 +30,31 @@ async def run() -> None:
         try:
             loop.add_signal_handler(signum, request_shutdown)
         except (NotImplementedError, RuntimeError, OSError):
-            LOGGER.debug("Signal handler unavailable for %s.", signum)
+            LOGGER.debug(
+                "Signal handler unavailable for %s.",
+                signum,
+            )
 
     load_functions(runtime)
 
     try:
+        await start_health_server(runtime)
         await runtime.start()
+
         LOGGER.info("DOWNTOWN VILLA is ONLINE.")
+
         await stop_event.wait()
+
     except asyncio.CancelledError:
         LOGGER.info("DOWNTOWN VILLA main task cancelled.")
         raise
+
     except Exception:
-        LOGGER.exception("DOWNTOWN VILLA stopped because of an error.")
+        LOGGER.exception(
+            "DOWNTOWN VILLA stopped because of an error."
+        )
         raise
+
     finally:
         await runtime.stop()
 
@@ -57,8 +62,17 @@ async def run() -> None:
 def main() -> None:
     try:
         asyncio.run(run())
+
     except KeyboardInterrupt:
-        LOGGER.info("DOWNTOWN VILLA stopped by keyboard.")
+        LOGGER.info(
+            "DOWNTOWN VILLA stopped by keyboard."
+        )
+
+    except Exception:
+        LOGGER.exception(
+            "Fatal DOWNTOWN VILLA process error."
+        )
+        raise
 
 
 if __name__ == "__main__":
