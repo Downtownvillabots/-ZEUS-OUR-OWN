@@ -1,1 +1,1 @@
-"""Duplicate detection modules."""
+"""Duplicate detection package."""
