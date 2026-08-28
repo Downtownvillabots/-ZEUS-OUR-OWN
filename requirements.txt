@@ -1,8 +1,0 @@
-# DOWNTOWN VILLA
-# Minimal runtime dependencies for the current foundation.
-#
-# Keep this file intentionally small.
-# Add a package only when a completed feature actually requires it.
-
-Pyrogram==2.0.106
-TgCrypto==1.2.5
