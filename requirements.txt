@@ -1,0 +1,4 @@
+# DOWNTOWN VILLA - current foundation only
+pyrofork==2.3.69
+tgcrypto-pyrofork
+aiohttp==3.12.15
