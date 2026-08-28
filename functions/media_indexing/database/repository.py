@@ -1,0 +1,6 @@
+"""Database contract. The concrete DB is intentionally isolated from parsing."""
+from typing import Protocol
+
+class MediaRepository(Protocol):
+    async def find_duplicate_candidates(self, *, normalized_title: str, file_size: int) -> list[dict]: ...
+    async def insert_media(self, record: dict) -> None: ...
