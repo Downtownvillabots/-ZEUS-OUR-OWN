@@ -1,1 +1,1 @@
-"""Database boundary for media indexing."""
+"""MongoDB database layer for media indexing."""
