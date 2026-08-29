@@ -1,7 +1,15 @@
-"""DOWNTOWN VILLA — Media Indexing.
-
-Feature #1. Historical/backfill and live indexing share one processing pipeline.
 """
-from .feature import register
+Media Indexing Module Entrypoint.
+"""
 
-__all__ = ["register"]
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from functions.media_indexing.feature import register_media_indexing
+
+if TYPE_CHECKING:
+    from app.runtime import Runtime
+
+
+def register(runtime: Runtime) -> None:
+    register_media_indexing(runtime)
