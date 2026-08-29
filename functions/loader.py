@@ -25,6 +25,8 @@ ENABLED_FEATURES = (
     "functions.runtime_test",
     "functions.start",
     "functions.help",
+    "functions.media_indexing",
+    
 )
 
 
