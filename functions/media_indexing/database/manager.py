@@ -1,4 +1,5 @@
 """
+DOWNTOWN VILLA
 MongoDB Sharding and Auto-Rotation Manager.
 """
 
@@ -32,8 +33,9 @@ class DatabaseManager:
         self._core_client = AsyncIOMotorClient(self.core_uri)
         self._media_clients = [AsyncIOMotorClient(uri) for uri in self.media_uris]
 
-        for client in self._media_clients:
-            db = client.get_database()
+        for idx, client in enumerate(self._media_clients):
+            # Fallback to explicit database name if not specified in URI string
+            db = client.get_database(f"media_shard_{idx + 2}")
             await self._setup_indexes(db)
 
         await self._select_active_shard()
@@ -53,14 +55,15 @@ class DatabaseManager:
     async def get_core_db(self) -> AsyncIOMotorDatabase:
         if not self._core_client:
             await self.connect()
-        return self._core_client.get_database()
+        return self._core_client.get_database("downtown_villa_core")
 
     async def get_active_media_db(self) -> tuple[AsyncIOMotorDatabase, str]:
-        """Returns active DB shard and its identifier string."""
+        """Returns active DB shard instance and its identifier string."""
         async with self._lock:
             client = self._media_clients[self.active_db_index]
             db_name = f"DATABASE_{self.active_db_index + 2}"
-            return client.get_database(), db_name
+            db = client.get_database(f"media_shard_{self.active_db_index + 2}")
+            return db, db_name
 
     async def get_db_usage_bytes(self, db: AsyncIOMotorDatabase) -> int:
         """Calculates dataSize + indexSize in bytes."""
@@ -72,7 +75,7 @@ class DatabaseManager:
 
     async def _select_active_shard(self) -> None:
         for idx, client in enumerate(self._media_clients):
-            db = client.get_database()
+            db = client.get_database(f"media_shard_{idx + 2}")
             usage = await self.get_db_usage_bytes(db)
             if usage < self.rotation_bytes:
                 self.active_db_index = idx
@@ -82,10 +85,10 @@ class DatabaseManager:
         LOGGER.warning("All shards exceed threshold. Set active shard to DATABASE_%d", self.active_db_index + 2)
 
     async def check_and_rotate(self) -> tuple[AsyncIOMotorDatabase, str]:
-        """Rotates to next shard if current shard reaches 400 MB."""
+        """Rotates to next shard if current shard reaches 400 MB threshold."""
         async with self._lock:
             client = self._media_clients[self.active_db_index]
-            db = client.get_database()
+            db = client.get_database(f"media_shard_{self.active_db_index + 2}")
             usage = await self.get_db_usage_bytes(db)
 
             if usage >= self.rotation_bytes and self.active_db_index < len(self._media_clients) - 1:
@@ -94,7 +97,7 @@ class DatabaseManager:
                 new_idx = self.active_db_index + 2
                 LOGGER.info("🗄️ DATABASE_%d reached safe threshold. 🔄 Switching to DATABASE_%d", old_idx, new_idx)
                 client = self._media_clients[self.active_db_index]
-                db = client.get_database()
+                db = client.get_database(f"media_shard_{new_idx}")
 
             return db, f"DATABASE_{self.active_db_index + 2}"
 
@@ -102,11 +105,11 @@ class DatabaseManager:
         """Queries across all media database shards concurrently."""
         results: list[dict[str, Any]] = []
 
-        async def _query_shard(client: AsyncIOMotorClient):
-            db = client.get_database()
+        async def _query_shard(idx: int, client: AsyncIOMotorClient):
+            db = client.get_database(f"media_shard_{idx + 2}")
             return await db.media.find(query).limit(limit).to_list(length=limit)
 
-        tasks = [_query_shard(client) for client in self._media_clients]
+        tasks = [_query_shard(idx, client) for idx, client in enumerate(self._media_clients)]
         shard_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         for res in shard_results:
