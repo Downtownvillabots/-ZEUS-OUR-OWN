@@ -1,45 +1,36 @@
-"""Layered duplicate policy.
-
-Telegram identity is strongest. Exact normalized title + size + structural
-metadata is the fallback. Size alone is never treated as a global identity.
 """
+Multi-Stage Layered Duplicate Detection Policy.
+"""
+
 from __future__ import annotations
-from ..models import ParsedMedia
+
+from typing import Any
+from functions.media_indexing.database.manager import DatabaseManager
 
 
-def is_duplicate(
-    media: ParsedMedia,
-    candidate: dict,
-    *,
-    file_size: int,
-    file_unique_id: str | None,
-) -> bool:
-    existing_unique_id = candidate.get("file_unique_id")
-    if file_unique_id and existing_unique_id and file_unique_id == existing_unique_id:
-        return True
+class DuplicatePolicy:
+    def __init__(self, db_manager: DatabaseManager) -> None:
+        self.db_manager = db_manager
 
-    if int(candidate.get("file_size", -1)) != int(file_size):
-        return False
-    if candidate.get("normalized_title") != media.normalized_title:
-        return False
+    async def is_duplicate(self, file_unique_id: str, meta: Any, file_size: int) -> tuple[bool, str]:
+        # Stage 1: Check unique ID across shards
+        id_match = await self.db_manager.find_in_all_shards({"file_unique_id": file_unique_id}, limit=1)
+        if id_match:
+            return True, "EXACT_UNIQUE_ID"
 
-    existing_year = candidate.get("year")
-    if existing_year is not None and media.year is not None and int(existing_year) != int(media.year):
-        return False
+        # Stage 2: Check normalized title, size, year, season/episode match
+        meta_query: dict[str, Any] = {
+            "normalized_title": meta.normalized_title,
+            "file_size": file_size,
+        }
+        if meta.year:
+            meta_query["year"] = meta.year
+        if meta.is_series:
+            meta_query["season"] = meta.season
+            meta_query["episode"] = meta.episode
 
-    if candidate.get("season") != media.season or candidate.get("episode") != media.episode:
-        return False
+        meta_match = await self.db_manager.find_in_all_shards(meta_query, limit=1)
+        if meta_match:
+            return True, "METADATA_AND_SIZE_MATCH"
 
-    if candidate.get("resolution") and media.resolution:
-        if candidate["resolution"] != media.resolution:
-            return False
-
-    if candidate.get("quality") and media.quality:
-        if candidate["quality"] != media.quality:
-            return False
-
-    if candidate.get("languages") and media.languages:
-        if tuple(candidate["languages"]) != tuple(media.languages):
-            return False
-
-    return True
+        return False, "UNIQUE"
