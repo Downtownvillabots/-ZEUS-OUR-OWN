@@ -1,1 +1,1 @@
-"""Indexing monitoring."""
+"""Indexing monitoring package."""
