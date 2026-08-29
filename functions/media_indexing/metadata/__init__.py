@@ -1,1 +1,1 @@
-"""Metadata extraction modules."""
+"""Metadata extraction package."""
