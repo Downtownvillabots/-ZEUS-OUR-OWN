@@ -1,58 +1,51 @@
-"""Environment-controlled configuration for Media Indexing."""
+"""
+Central configuration reader for Media Indexing system.
+"""
+
 from __future__ import annotations
+
 import os
 from dataclasses import dataclass
 
 
-def _bool(name: str, default: bool) -> bool:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+def _split_csv(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
-def _int(name: str, default: int) -> int:
-    try:
-        return int(os.getenv(name, str(default)))
-    except (TypeError, ValueError):
-        return default
-
-
-def channel_ids(value: str | None) -> tuple[int, ...]:
+def _split_int_csv(value: str) -> list[int]:
     result = []
-    for item in (value or "").split(","):
+    for item in value.split(","):
         item = item.strip()
-        if not item:
-            continue
-        try:
-            result.append(int(item))
-        except ValueError:
-            continue
-    return tuple(dict.fromkeys(result))
+        if item:
+            try:
+                result.append(int(item))
+            except ValueError:
+                pass
+    return result
 
 
 @dataclass(frozen=True, slots=True)
-class IndexingConfig:
-    database_channels: tuple[int, ...]
-    live_enabled: bool
-    historical_enabled: bool
-    batch_size: int
-    concurrency: int
-    progress_every: int
-    max_scan_messages: int
-    rotation_mb: int
-    max_duplicate_candidates: int
+class MediaIndexingConfig:
+    core_db_uri: str
+    media_db_uris: list[str]
+    rotation_mb: float
+    database_channels: list[int]
 
+    @classmethod
+    def from_env(cls) -> MediaIndexingConfig:
+        core_uri = os.getenv("DATABASE_1_URI", "").strip() or os.getenv("MONGODB_URI", "").strip()
+        if not core_uri:
+            raise RuntimeError("DATABASE_1_URI (or MONGODB_URI) must be provided in environment.")
 
-def load_config() -> IndexingConfig:
-    return IndexingConfig(
-        database_channels=channel_ids(os.getenv("DATABASE_CHANNELS")),
-        live_enabled=_bool("LIVE_INDEXING_ENABLED", True),
-        historical_enabled=_bool("HISTORICAL_INDEXING_ENABLED", True),
-        batch_size=max(25, _int("INDEX_BATCH_SIZE", 200)),
-        concurrency=max(1, _int("INDEX_MAX_CONCURRENCY", 20)),
-        progress_every=max(1, _int("INDEX_PROGRESS_EVERY", 100)),
-        max_scan_messages=max(1, _int("INDEX_MAX_SCAN_MESSAGES", 1_000_000)),
-        rotation_mb=max(100, _int("MEDIA_DATABASE_ROTATION_MB", 400)),
-        max_duplicate_candidates=max(10, _int("MAX_DUPLICATE_CANDIDATES", 100)),
-    )
+        media_uris_raw = os.getenv("MEDIA_DATABASE_URIS", "").strip()
+        media_uris = _split_csv(media_uris_raw) if media_uris_raw else [core_uri]
+
+        rotation_mb = float(os.getenv("MEDIA_DATABASE_ROTATION_MB", "400").strip() or 400)
+        channels = _split_int_csv(os.getenv("DATABASE_CHANNELS", ""))
+
+        return cls(
+            core_db_uri=core_uri,
+            media_db_uris=media_uris,
+            rotation_mb=rotation_mb,
+            database_channels=channels,
+        )
