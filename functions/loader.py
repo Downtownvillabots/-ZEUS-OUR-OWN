@@ -26,6 +26,7 @@ ENABLED_FEATURES = (
     "functions.start",
     "functions.help",
     "functions.media_indexing",
+    "functions.search",
     
 )
 
