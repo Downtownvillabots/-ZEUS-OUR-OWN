@@ -1,4 +1,4 @@
-```python
+
 """
 bot.app.dependencies
 
@@ -848,4 +848,4 @@ __all__ = [
     "validate_container",
     "dependency_summary",
 ]
-```
+
