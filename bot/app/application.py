@@ -1,4 +1,3 @@
-```python
 """
 bot.app.application
 
@@ -994,4 +993,3 @@ class BotApplication:
 __all__ = [
     "BotApplication",
 ]
-```
