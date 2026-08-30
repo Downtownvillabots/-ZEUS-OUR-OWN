@@ -3234,7 +3234,85 @@ async def get_media_location(
     return await manager.get_media_location(
         media_id
     )
+    # ========================================================================
+    # Legacy user compatibility API
+    # ========================================================================
 
+    @property
+    def users(self):
+        return self.collection("users")
+
+    async def is_user_exist(self, user_id: int) -> bool:
+        document = await self.users.find_one(
+            {"_id": int(user_id)},
+            {"_id": 1},
+        )
+        return document is not None
+
+    async def get_user(self, user_id: int):
+        return await self.users.find_one(
+            {"_id": int(user_id)}
+        )
+
+    async def add_user(self, user_id: int, **data):
+        user_id = int(user_id)
+
+        await self.users.update_one(
+            {"_id": user_id},
+            {
+                "$set": data,
+                "$setOnInsert": {
+                    "user_id": user_id,
+                },
+            },
+            upsert=True,
+        )
+
+        return await self.get_user(user_id)
+
+    async def update_user(
+        self,
+        user_id: int,
+        **data,
+    ):
+        await self.users.update_one(
+            {"_id": int(user_id)},
+            {"$set": data},
+            upsert=True,
+        )
+
+        return await self.get_user(user_id)
+
+    async def get_ban_status(
+        self,
+        user_id: int,
+    ) -> bool:
+        user = await self.get_user(user_id)
+
+        if not user:
+            return False
+
+        return bool(
+            user.get("is_banned", False)
+            or user.get("banned", False)
+        )
+
+    async def set_ban_status(
+        self,
+        user_id: int,
+        banned: bool,
+    ):
+        return await self.update_user(
+            user_id,
+            is_banned=bool(banned),
+            banned=bool(banned),
+        )
+
+    # ========================================================================
+    # Shutdown
+    # ========================================================================
+
+    async def close(
 
 # ============================================================================
 # SHUTDOWN
