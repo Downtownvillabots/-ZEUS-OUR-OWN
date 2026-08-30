@@ -1,4 +1,4 @@
-```python
+
 """
 bot.app.startup
 
@@ -475,4 +475,4 @@ __all__ = [
     "validate_startup_configuration",
     "startup_summary",
 ]
-```
+
