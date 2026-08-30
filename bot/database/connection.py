@@ -1,58 +1,33 @@
+```python
 """
 bot.database.connection
 
-Async PostgreSQL database connection and lifecycle management.
+MongoDB connection and lifecycle management.
 
-Responsibilities
-----------------
-- Database URL/configuration handling
-- Async SQLAlchemy engine creation
-- Session factory
-- Transaction management
-- Connection health checks
-- Startup/shutdown lifecycle
-- Pool configuration
-- Safe application integration
+Environment:
+    MONGO_URI
+    MONGO_DATABASE
 
-Expected environment variables
--------------------------------
-DATABASE_URL
-DB_URL
-DATABASE_HOST
-DATABASE_PORT
-DATABASE_NAME
-DATABASE_USER
-DATABASE_PASSWORD
+Optional:
+    MONGO_SERVER_SELECTION_TIMEOUT_MS
+    MONGO_CONNECT_TIMEOUT_MS
+    MONGO_SOCKET_TIMEOUT_MS
+    MONGO_APP_NAME
 
-Preferred production configuration:
-
-    DATABASE_URL=postgresql+asyncpg://user:password@host:5432/database
-
-SQLite is supported for development/testing:
-
-    sqlite+aiosqlite:///./data/bot.db
-
-The application should use this module instead of creating database
-connections in individual handlers/services.
+The application owns one DatabaseManager instance. Repositories access
+MongoDB through that manager rather than creating their own clients.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Optional
+from contextlib import asynccontextmanager
 
-from sqlalchemy import text
-from sqlalchemy.engine import URL
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+from pymongo import AsyncMongoClient
+from pymongo.errors import PyMongoError, ServerSelectionTimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -61,158 +36,95 @@ logger = logging.getLogger(__name__)
 # Constants
 # ============================================================================
 
-DEFAULT_DB_HOST = "localhost"
+DEFAULT_DATABASE_NAME = "telegram_bot"
 
-DEFAULT_DB_PORT = 5432
+DEFAULT_SERVER_SELECTION_TIMEOUT_MS = 10_000
 
-DEFAULT_DB_NAME = "bot"
+DEFAULT_CONNECT_TIMEOUT_MS = 10_000
 
-DEFAULT_DB_USER = "postgres"
+DEFAULT_SOCKET_TIMEOUT_MS = 30_000
 
-DEFAULT_POOL_SIZE = 10
-
-DEFAULT_MAX_OVERFLOW = 20
-
-DEFAULT_POOL_TIMEOUT = 30
-
-DEFAULT_POOL_RECYCLE = 1800
-
-DEFAULT_CONNECT_TIMEOUT = 10
-
-DEFAULT_ECHO = False
+DEFAULT_APP_NAME = "telegram-bot"
 
 
 # ============================================================================
 # Configuration
 # ============================================================================
 
+
 @dataclass
 class DatabaseConfig:
     """
-    Database connection configuration.
+    MongoDB connection configuration.
     """
 
-    url: Optional[str] = None
+    uri: str = ""
 
-    host: str = DEFAULT_DB_HOST
+    database: str = DEFAULT_DATABASE_NAME
 
-    port: int = DEFAULT_DB_PORT
+    server_selection_timeout_ms: int = (
+        DEFAULT_SERVER_SELECTION_TIMEOUT_MS
+    )
 
-    name: str = DEFAULT_DB_NAME
+    connect_timeout_ms: int = (
+        DEFAULT_CONNECT_TIMEOUT_MS
+    )
 
-    user: str = DEFAULT_DB_USER
+    socket_timeout_ms: int = (
+        DEFAULT_SOCKET_TIMEOUT_MS
+    )
 
-    password: str = ""
-
-    pool_size: int = DEFAULT_POOL_SIZE
-
-    max_overflow: int = DEFAULT_MAX_OVERFLOW
-
-    pool_timeout: int = DEFAULT_POOL_TIMEOUT
-
-    pool_recycle: int = DEFAULT_POOL_RECYCLE
-
-    connect_timeout: int = DEFAULT_CONNECT_TIMEOUT
-
-    echo: bool = DEFAULT_ECHO
-
-    ssl: Optional[str] = None
-
-    application_name: str = "telegram-bot"
+    application_name: str = (
+        DEFAULT_APP_NAME
+    )
 
     @classmethod
     def from_environment(
         cls,
     ) -> "DatabaseConfig":
+        """
+        Load MongoDB configuration from environment variables.
+        """
 
-        url = (
-            os.getenv(
-                "DATABASE_URL"
-            )
-            or os.getenv(
-                "DB_URL"
-            )
-        )
+        uri = (
+            os.getenv("MONGO_URI")
+            or os.getenv("MONGODB_URI")
+            or ""
+        ).strip()
 
-        host = os.getenv(
-            "DATABASE_HOST",
-            DEFAULT_DB_HOST,
-        )
-
-        port = _int_env(
-            "DATABASE_PORT",
-            DEFAULT_DB_PORT,
-        )
-
-        name = os.getenv(
-            "DATABASE_NAME",
-            DEFAULT_DB_NAME,
-        )
-
-        user = os.getenv(
-            "DATABASE_USER",
-            DEFAULT_DB_USER,
-        )
-
-        password = os.getenv(
-            "DATABASE_PASSWORD",
-            "",
-        )
-
-        pool_size = _int_env(
-            "DATABASE_POOL_SIZE",
-            DEFAULT_POOL_SIZE,
-        )
-
-        max_overflow = _int_env(
-            "DATABASE_MAX_OVERFLOW",
-            DEFAULT_MAX_OVERFLOW,
-        )
-
-        pool_timeout = _int_env(
-            "DATABASE_POOL_TIMEOUT",
-            DEFAULT_POOL_TIMEOUT,
-        )
-
-        pool_recycle = _int_env(
-            "DATABASE_POOL_RECYCLE",
-            DEFAULT_POOL_RECYCLE,
-        )
-
-        connect_timeout = _int_env(
-            "DATABASE_CONNECT_TIMEOUT",
-            DEFAULT_CONNECT_TIMEOUT,
-        )
-
-        echo = _bool_env(
-            "DATABASE_ECHO",
-            DEFAULT_ECHO,
-        )
-
-        ssl = os.getenv(
-            "DATABASE_SSL"
-        )
-
-        application_name = os.getenv(
-            "DATABASE_APPLICATION_NAME",
-            "telegram-bot",
-        )
+        database = (
+            os.getenv("MONGO_DATABASE")
+            or os.getenv("MONGODB_DATABASE")
+            or DEFAULT_DATABASE_NAME
+        ).strip()
 
         return cls(
-            url=url,
-            host=host,
-            port=port,
-            name=name,
-            user=user,
-            password=password,
-            pool_size=pool_size,
-            max_overflow=max_overflow,
-            pool_timeout=pool_timeout,
-            pool_recycle=pool_recycle,
-            connect_timeout=connect_timeout,
-            echo=echo,
-            ssl=ssl,
-            application_name=application_name,
+            uri=uri,
+            database=database,
+            server_selection_timeout_ms=_safe_int(
+                os.getenv(
+                    "MONGO_SERVER_SELECTION_TIMEOUT_MS"
+                ),
+                DEFAULT_SERVER_SELECTION_TIMEOUT_MS,
+            ),
+            connect_timeout_ms=_safe_int(
+                os.getenv(
+                    "MONGO_CONNECT_TIMEOUT_MS"
+                ),
+                DEFAULT_CONNECT_TIMEOUT_MS,
+            ),
+            socket_timeout_ms=_safe_int(
+                os.getenv(
+                    "MONGO_SOCKET_TIMEOUT_MS"
+                ),
+                DEFAULT_SOCKET_TIMEOUT_MS,
+            ),
+            application_name=(
+                os.getenv(
+                    "MONGO_APP_NAME"
+                )
+                or DEFAULT_APP_NAME
+            ),
         )
 
     @classmethod
@@ -220,6 +132,9 @@ class DatabaseConfig:
         cls,
         config: Any,
     ) -> "DatabaseConfig":
+        """
+        Create MongoDB configuration from Settings, a dict, or None.
+        """
 
         if config is None:
 
@@ -241,185 +156,167 @@ class DatabaseConfig:
 
         else:
 
-            getter = lambda key, default=None: getattr(
-                config,
-                key,
-                default,
+            getter = (
+                lambda key, default=None:
+                getattr(
+                    config,
+                    key,
+                    default,
+                )
             )
 
-        url = (
-            getter(
-                "database_url"
-            )
-            or getter(
-                "db_url"
-            )
-            or getter(
-                "url"
-            )
+        uri = (
+            getter("mongo_uri")
+            or getter("mongodb_uri")
+            or getter("database_uri")
+            or getter("uri")
+            or os.getenv("MONGO_URI")
+            or os.getenv("MONGODB_URI")
+            or ""
+        )
+
+        database = (
+            getter("mongo_database")
+            or getter("mongodb_database")
+            or getter("database_name")
+            or getter("database")
+            or os.getenv("MONGO_DATABASE")
+            or DEFAULT_DATABASE_NAME
         )
 
         return cls(
-            url=url,
-            host=getter(
-                "database_host",
+            uri=str(uri).strip(),
+            database=str(database).strip(),
+            server_selection_timeout_ms=_safe_int(
                 getter(
-                    "host",
-                    DEFAULT_DB_HOST,
+                    "mongo_server_selection_timeout_ms",
+                    DEFAULT_SERVER_SELECTION_TIMEOUT_MS,
                 ),
+                DEFAULT_SERVER_SELECTION_TIMEOUT_MS,
             ),
-            port=_safe_int(
+            connect_timeout_ms=_safe_int(
                 getter(
-                    "database_port",
-                    getter(
-                        "port",
-                        DEFAULT_DB_PORT,
-                    ),
+                    "mongo_connect_timeout_ms",
+                    DEFAULT_CONNECT_TIMEOUT_MS,
                 ),
-                DEFAULT_DB_PORT,
+                DEFAULT_CONNECT_TIMEOUT_MS,
             ),
-            name=getter(
-                "database_name",
+            socket_timeout_ms=_safe_int(
                 getter(
-                    "name",
-                    DEFAULT_DB_NAME,
+                    "mongo_socket_timeout_ms",
+                    DEFAULT_SOCKET_TIMEOUT_MS,
                 ),
+                DEFAULT_SOCKET_TIMEOUT_MS,
             ),
-            user=getter(
-                "database_user",
+            application_name=str(
                 getter(
-                    "user",
-                    DEFAULT_DB_USER,
-                ),
-            ),
-            password=getter(
-                "database_password",
-                getter(
-                    "password",
-                    "",
-                ),
-            ),
-            pool_size=_safe_int(
-                getter(
-                    "database_pool_size",
-                    DEFAULT_POOL_SIZE,
-                ),
-                DEFAULT_POOL_SIZE,
-            ),
-            max_overflow=_safe_int(
-                getter(
-                    "database_max_overflow",
-                    DEFAULT_MAX_OVERFLOW,
-                ),
-                DEFAULT_MAX_OVERFLOW,
-            ),
-            pool_timeout=_safe_int(
-                getter(
-                    "database_pool_timeout",
-                    DEFAULT_POOL_TIMEOUT,
-                ),
-                DEFAULT_POOL_TIMEOUT,
-            ),
-            pool_recycle=_safe_int(
-                getter(
-                    "database_pool_recycle",
-                    DEFAULT_POOL_RECYCLE,
-                ),
-                DEFAULT_POOL_RECYCLE,
-            ),
-            connect_timeout=_safe_int(
-                getter(
-                    "database_connect_timeout",
-                    DEFAULT_CONNECT_TIMEOUT,
-                ),
-                DEFAULT_CONNECT_TIMEOUT,
-            ),
-            echo=_safe_bool(
-                getter(
-                    "database_echo",
-                    DEFAULT_ECHO,
-                ),
-                DEFAULT_ECHO,
-            ),
-            ssl=getter(
-                "database_ssl",
-                getter(
-                    "ssl"
-                ),
-            ),
-            application_name=getter(
-                "database_application_name",
-                "telegram-bot",
+                    "mongo_app_name",
+                    DEFAULT_APP_NAME,
+                )
             ),
         )
 
-    def build_url(
+    def validate(
+        self,
+    ) -> None:
+        """
+        Validate required MongoDB configuration.
+        """
+
+        if not self.uri:
+
+            raise RuntimeError(
+                "MONGO_URI is not configured."
+            )
+
+        if not self.database:
+
+            raise RuntimeError(
+                "MONGO_DATABASE is not configured."
+            )
+
+    def sanitized_uri(
         self,
     ) -> str:
         """
-        Build an async SQLAlchemy URL.
+        Return a URI safe for logging.
 
-        PostgreSQL is the production default.
+        Credentials are never logged.
         """
 
-        if self.url:
+        value = self.uri
 
-            return normalize_database_url(
-                self.url
-            )
+        if not value:
 
-        return str(
-            URL.create(
-                drivername=(
-                    "postgresql+asyncpg"
-                ),
-                username=self.user,
-                password=self.password,
-                host=self.host,
-                port=self.port,
-                database=self.name,
-            )
-        )
-
-    def sanitized_url(
-        self,
-    ) -> str:
-
-        url = self.build_url()
+            return "<not-configured>"
 
         try:
 
-            parsed = URL.make_url(
-                url
+            if "@" not in value:
+
+                return value
+
+            scheme, remainder = (
+                value.split(
+                    "://",
+                    1,
+                )
             )
 
-            return str(
-                parsed.render_as_string(
-                    hide_password=True
+            if "@" not in remainder:
+
+                return value
+
+            credentials, host = (
+                remainder.split(
+                    "@",
+                    1,
                 )
+            )
+
+            if ":" in credentials:
+
+                username = (
+                    credentials.split(
+                        ":",
+                        1,
+                    )[0]
+                )
+
+                credentials = (
+                    username
+                    + ":***"
+                )
+
+            return (
+                scheme
+                + "://"
+                + credentials
+                + "@"
+                + host
             )
 
         except Exception:
 
-            return redact_database_url(
-                url
-            )
+            return "<redacted>"
 
 
 # ============================================================================
-# Environment helpers
+# Helpers
 # ============================================================================
+
 
 def _safe_int(
     value: Any,
     default: int,
 ) -> int:
+    """
+    Safely convert a value to int.
+    """
 
     try:
 
-        return int(
-            value
-        )
+        return int(value)
 
     except (
         TypeError,
@@ -429,174 +326,21 @@ def _safe_int(
         return default
 
 
-def _safe_bool(
-    value: Any,
-    default: bool,
-) -> bool:
-
-    if isinstance(
-        value,
-        bool,
-    ):
-
-        return value
-
-    if value is None:
-
-        return default
-
-    if isinstance(
-        value,
-        str,
-    ):
-
-        return value.lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-            "enabled",
-        }
-
-    return bool(
-        value
-    )
-
-
-def _int_env(
-    name: str,
-    default: int,
-) -> int:
-
-    return _safe_int(
-        os.getenv(
-            name
-        ),
-        default,
-    )
-
-
-def _bool_env(
-    name: str,
-    default: bool,
-) -> bool:
-
-    return _safe_bool(
-        os.getenv(
-            name
-        ),
-        default,
-    )
-
-
-# ============================================================================
-# URL helpers
-# ============================================================================
-
-def normalize_database_url(
-    url: str,
-) -> str:
-
-    value = str(
-        url
-    ).strip()
-
-    if value.startswith(
-        "postgres://"
-    ):
-
-        value = value.replace(
-            "postgres://",
-            "postgresql+asyncpg://",
-            1,
-        )
-
-    elif value.startswith(
-        "postgresql://"
-    ):
-
-        value = value.replace(
-            "postgresql://",
-            "postgresql+asyncpg://",
-            1,
-        )
-
-    elif value.startswith(
-        "postgresql+psycopg://"
-    ):
-
-        value = value.replace(
-            "postgresql+psycopg://",
-            "postgresql+asyncpg://",
-            1,
-        )
-
-    elif value.startswith(
-        "sqlite:///"
-    ):
-
-        value = value.replace(
-            "sqlite:///",
-            "sqlite+aiosqlite:///",
-            1,
-        )
-
-    return value
-
-
-def redact_database_url(
-    url: str,
-) -> str:
-
-    value = str(
-        url
-    )
-
-    try:
-
-        parsed = URL.make_url(
-            value
-        )
-
-        return str(
-            parsed.render_as_string(
-                hide_password=True
-            )
-        )
-
-    except Exception:
-
-        if "@" not in value:
-            return value
-
-        prefix, suffix = value.split(
-            "@",
-            1,
-        )
-
-        if ":" in prefix:
-
-            prefix = prefix.rsplit(
-                ":",
-                1,
-            )[0]
-
-            prefix += ":***"
-
-        return (
-            prefix
-            + "@"
-            + suffix
-        )
-
-
 # ============================================================================
 # Database manager
 # ============================================================================
 
+
 class DatabaseManager:
     """
-    Owns the SQLAlchemy engine and async session factory.
+    Owns the MongoDB AsyncMongoClient and database handle.
+
+    The manager deliberately exposes both:
+
+        manager.client
+        manager.database
+
+    so repository migration can happen incrementally.
     """
 
     def __init__(
@@ -611,138 +355,138 @@ class DatabaseManager:
             or DatabaseConfig.from_environment()
         )
 
-        self.engine: Optional[
-            AsyncEngine
+        self.client: Optional[
+            AsyncMongoClient
         ] = None
 
-        self.session_factory: Optional[
-            async_sessionmaker[
-                AsyncSession
-            ]
-        ] = None
+        self.database = None
 
         self.initialized = False
 
-    # ------------------------------------------------------------------------
-    # Engine
-    # ------------------------------------------------------------------------
+    # ========================================================================
+    # Client creation
+    # ========================================================================
 
-    def create_engine(
+    def create_client(
         self,
-    ) -> AsyncEngine:
+    ) -> AsyncMongoClient:
+        """
+        Create the MongoDB async client.
 
-        if self.engine is not None:
+        The client is created once and reused for the application's
+        lifetime.
+        """
 
-            return self.engine
+        if self.client is not None:
 
-        url = self.config.build_url()
+            return self.client
 
-        engine_kwargs: dict[
-            str,
-            Any,
-        ] = {
-            "echo": self.config.echo,
-            "pool_pre_ping": True,
-        }
+        self.config.validate()
 
-        # SQLite does not support the PostgreSQL pool parameters.
-        is_sqlite = url.startswith(
-            "sqlite+"
+        self.client = AsyncMongoClient(
+            self.config.uri,
+            serverSelectionTimeoutMS=(
+                self.config
+                .server_selection_timeout_ms
+            ),
+            connectTimeoutMS=(
+                self.config
+                .connect_timeout_ms
+            ),
+            socketTimeoutMS=(
+                self.config
+                .socket_timeout_ms
+            ),
+            appname=(
+                self.config
+                .application_name
+            ),
         )
 
-        if not is_sqlite:
-
-            engine_kwargs.update(
-                {
-                    "pool_size": (
-                        self.config.pool_size
-                    ),
-                    "max_overflow": (
-                        self.config.max_overflow
-                    ),
-                    "pool_timeout": (
-                        self.config.pool_timeout
-                    ),
-                    "pool_recycle": (
-                        self.config.pool_recycle
-                    ),
-                }
-            )
-
-            connect_args: dict[
-                str,
-                Any,
-            ] = {
-                "timeout": (
-                    self.config.connect_timeout
-                ),
-            }
-
-            if self.config.ssl:
-
-                connect_args[
-                    "ssl"
-                ] = self.config.ssl
-
-            if self.config.application_name:
-
-                connect_args[
-                    "server_settings"
-                ] = {
-                    "application_name": (
-                        self.config.application_name
-                    )
-                }
-
-            engine_kwargs[
-                "connect_args"
-            ] = connect_args
-
-        else:
-
-            engine_kwargs[
-                "connect_args"
-            ] = {
-                "timeout": (
-                    self.config.connect_timeout
-                )
-            }
-
-        self.engine = create_async_engine(
-            url,
-            **engine_kwargs,
-        )
-
-        self.session_factory = (
-            async_sessionmaker(
-                self.engine,
-                class_=AsyncSession,
-                expire_on_commit=False,
-                autoflush=False,
-                autocommit=False,
-            )
+        self.database = (
+            self.client[
+                self.config.database
+            ]
         )
 
         logger.info(
-            "Database engine created: %s",
-            self.config.sanitized_url(),
+            "MongoDB client created: %s",
+            self.config.sanitized_uri(),
         )
 
-        return self.engine
+        logger.info(
+            "MongoDB database selected: %s",
+            self.config.database,
+        )
 
-    # ------------------------------------------------------------------------
+        return self.client
+
+    # ========================================================================
+    # Database handle
+    # ========================================================================
+
+    def get_database(
+        self,
+    ):
+        """
+        Return the selected MongoDB database.
+        """
+
+        if self.database is None:
+
+            self.create_client()
+
+        if self.database is None:
+
+            raise RuntimeError(
+                "MongoDB database is unavailable."
+            )
+
+        return self.database
+
+    # ========================================================================
+    # Collection
+    # ========================================================================
+
+    def collection(
+        self,
+        name: str,
+    ):
+        """
+        Return a MongoDB collection.
+        """
+
+        collection_name = (
+            str(name)
+            .strip()
+        )
+
+        if not collection_name:
+
+            raise ValueError(
+                "Collection name cannot be empty."
+            )
+
+        return self.get_database()[
+            collection_name
+        ]
+
+    # ========================================================================
     # Initialization
-    # ------------------------------------------------------------------------
+    # ========================================================================
 
     async def initialize(
         self,
     ) -> "DatabaseManager":
+        """
+        Create the client and verify connectivity with ping.
+        """
 
         if self.initialized:
 
             return self
 
-        self.create_engine()
+        self.create_client()
 
         await self.health_check(
             raise_on_error=True
@@ -751,166 +495,46 @@ class DatabaseManager:
         self.initialized = True
 
         logger.info(
-            "Database manager initialized."
+            "MongoDB database manager initialized."
         )
 
         return self
 
-    # ------------------------------------------------------------------------
-    # Session
-    # ------------------------------------------------------------------------
-
-    def session(
-        self,
-    ) -> AsyncSession:
-
-        if self.session_factory is None:
-
-            self.create_engine()
-
-        if self.session_factory is None:
-
-            raise RuntimeError(
-                "Database session factory is unavailable."
-            )
-
-        return self.session_factory()
-
-    @asynccontextmanager
-    async def session_context(
-        self,
-    ) -> AsyncIterator[
-        AsyncSession
-    ]:
-
-        session = self.session()
-
-        try:
-
-            yield session
-
-        except Exception:
-
-            await session.rollback()
-
-            raise
-
-        finally:
-
-            await session.close()
-
-    # ------------------------------------------------------------------------
-    # Transaction
-    # ------------------------------------------------------------------------
-
-    @asynccontextmanager
-    async def transaction(
-        self,
-    ) -> AsyncIterator[
-        AsyncSession
-    ]:
-
-        session = self.session()
-
-        try:
-
-            async with session.begin():
-
-                yield session
-
-        except Exception:
-
-            await session.rollback()
-
-            raise
-
-        finally:
-
-            await session.close()
-
-    # ------------------------------------------------------------------------
-    # Execute
-    # ------------------------------------------------------------------------
-
-    async def execute(
-        self,
-        statement,
-        params: Optional[
-            dict[str, Any]
-        ] = None,
-    ):
-
-        async with self.session_context() as session:
-
-            return await session.execute(
-                statement,
-                params or {},
-            )
-
-    async def scalar(
-        self,
-        statement,
-        params: Optional[
-            dict[str, Any]
-        ] = None,
-    ):
-
-        result = await self.execute(
-            statement,
-            params,
-        )
-
-        return result.scalar()
-
-    async def scalars(
-        self,
-        statement,
-        params: Optional[
-            dict[str, Any]
-        ] = None,
-    ):
-
-        result = await self.execute(
-            statement,
-            params,
-        )
-
-        return result.scalars().all()
-
-    # ------------------------------------------------------------------------
+    # ========================================================================
     # Health
-    # ------------------------------------------------------------------------
+    # ========================================================================
 
     async def health_check(
         self,
         *,
         raise_on_error: bool = False,
     ) -> bool:
+        """
+        Ping MongoDB.
 
-        if self.engine is None:
-
-            self.create_engine()
-
-        if self.engine is None:
-
-            return False
+        MongoDB's ping command is the authoritative connectivity check.
+        """
 
         try:
 
-            async with self.engine.connect() as connection:
+            client = (
+                self.create_client()
+            )
 
-                await connection.execute(
-                    text(
-                        "SELECT 1"
-                    )
-                )
+            await client.admin.command(
+                "ping"
+            )
 
             return True
 
-        except Exception:
+        except (
+            ServerSelectionTimeoutError,
+            PyMongoError,
+            OSError,
+        ):
 
             logger.exception(
-                "Database health check failed."
+                "MongoDB health check failed."
             )
 
             if raise_on_error:
@@ -931,33 +555,120 @@ class DatabaseManager:
 
         return await self.health_check()
 
-    # ------------------------------------------------------------------------
-    # Commit / rollback helpers
-    # ------------------------------------------------------------------------
+    # ========================================================================
+    # Transaction compatibility
+    # ========================================================================
 
-    async def commit(
+    @asynccontextmanager
+    async def transaction(
         self,
-        session: AsyncSession,
-    ) -> None:
+    ) -> AsyncIterator[Any]:
+        """
+        Provide a MongoDB session/transaction context.
 
-        await session.commit()
+        MongoDB transactions require a deployment that supports them
+        (for example Atlas replica sets).
 
-    async def rollback(
+        Repository migration should use this context when atomic
+        multi-document operations are required.
+        """
+
+        if self.client is None:
+
+            self.create_client()
+
+        if self.client is None:
+
+            raise RuntimeError(
+                "MongoDB client is unavailable."
+            )
+
+        session = (
+            await self.client.start_session()
+        )
+
+        try:
+
+            async with session.start_transaction():
+
+                yield session
+
+        except Exception:
+
+            try:
+
+                await session.abort_transaction()
+
+            except Exception:
+
+                logger.debug(
+                    "MongoDB transaction abort failed.",
+                    exc_info=True,
+                )
+
+            raise
+
+        finally:
+
+            await session.end_session()
+
+    # ========================================================================
+    # Session
+    # ========================================================================
+
+    async def start_session(
         self,
-        session: AsyncSession,
-    ) -> None:
+    ):
+        """
+        Start a MongoDB session.
 
-        await session.rollback()
+        Callers are responsible for ending it.
+        """
 
-    # ------------------------------------------------------------------------
+        if self.client is None:
+
+            self.create_client()
+
+        if self.client is None:
+
+            raise RuntimeError(
+                "MongoDB client is unavailable."
+            )
+
+        return await (
+            self.client.start_session()
+        )
+
+    # ========================================================================
+    # Command
+    # ========================================================================
+
+    async def command(
+        self,
+        command: Any,
+    ) -> Any:
+        """
+        Execute a database command.
+        """
+
+        return await self.get_database().command(
+            command
+        )
+
+    # ========================================================================
     # Shutdown
-    # ------------------------------------------------------------------------
+    # ========================================================================
 
     async def close(
         self,
     ) -> None:
+        """
+        Close the MongoDB client.
+        """
 
-        if self.engine is None:
+        if self.client is None:
+
+            self.database = None
 
             self.initialized = False
 
@@ -965,18 +676,18 @@ class DatabaseManager:
 
         try:
 
-            await self.engine.dispose()
+            await self.client.close()
 
         finally:
 
-            self.engine = None
+            self.client = None
 
-            self.session_factory = None
+            self.database = None
 
             self.initialized = False
 
         logger.info(
-            "Database engine disposed."
+            "MongoDB client closed."
         )
 
     async def disconnect(
@@ -991,32 +702,30 @@ class DatabaseManager:
 
         await self.close()
 
-    # ------------------------------------------------------------------------
-    # Information
-    # ------------------------------------------------------------------------
+    # ========================================================================
+    # Status
+    # ========================================================================
 
     def status(
         self,
     ) -> dict[str, Any]:
+        """
+        Return safe database status information.
+        """
 
         return {
             "initialized": (
                 self.initialized
             ),
-            "engine_created": (
-                self.engine is not None
-            ),
-            "session_factory_created": (
-                self.session_factory is not None
+            "client_created": (
+                self.client is not None
             ),
             "database": (
-                self.config.sanitized_url()
+                self.config.database
             ),
-            "pool_size": (
-                self.config.pool_size
-            ),
-            "max_overflow": (
-                self.config.max_overflow
+            "provider": "mongodb",
+            "uri": (
+                self.config.sanitized_uri()
             ),
         }
 
@@ -1024,6 +733,7 @@ class DatabaseManager:
 # ============================================================================
 # Global manager
 # ============================================================================
+
 
 _database_manager: Optional[
     DatabaseManager
@@ -1035,6 +745,9 @@ def get_database_manager(
 ) -> Optional[
     DatabaseManager
 ]:
+    """
+    Retrieve the global/application DatabaseManager.
+    """
 
     global _database_manager
 
@@ -1051,7 +764,26 @@ def get_database_manager(
             DatabaseManager,
         ):
 
-            _database_manager = existing
+            _database_manager = (
+                existing
+            )
+
+            return existing
+
+        existing = getattr(
+            app,
+            "database",
+            None,
+        )
+
+        if isinstance(
+            existing,
+            DatabaseManager,
+        ):
+
+            _database_manager = (
+                existing
+            )
 
             return existing
 
@@ -1062,6 +794,9 @@ def set_database_manager(
     manager: DatabaseManager,
     app: Any = None,
 ) -> DatabaseManager:
+    """
+    Register the application's database manager.
+    """
 
     global _database_manager
 
@@ -1091,13 +826,17 @@ def set_database_manager(
 # Initialization helpers
 # ============================================================================
 
+
 async def initialize(
     app: Any = None,
     config: Any = None,
 ) -> DatabaseManager:
+    """
+    Initialize MongoDB.
+    """
 
-    existing = get_database_manager(
-        app
+    existing = (
+        get_database_manager(app)
     )
 
     if existing is not None:
@@ -1152,15 +891,19 @@ async def init_database(
 
 
 # ============================================================================
-# Session shortcuts
+# MongoDB shortcuts
 # ============================================================================
 
-def get_session(
-    app: Any = None,
-) -> AsyncSession:
 
-    manager = get_database_manager(
-        app
+def get_database(
+    app: Any = None,
+):
+    """
+    Return the application's MongoDB database.
+    """
+
+    manager = (
+        get_database_manager(app)
     )
 
     if manager is None:
@@ -1169,18 +912,19 @@ def get_session(
             "Database has not been initialized."
         )
 
-    return manager.session()
+    return manager.get_database()
 
 
-@asynccontextmanager
-async def session(
+def get_collection(
+    name: str,
     app: Any = None,
-) -> AsyncIterator[
-    AsyncSession
-]:
+):
+    """
+    Return a named MongoDB collection.
+    """
 
-    manager = get_database_manager(
-        app
+    manager = (
+        get_database_manager(app)
     )
 
     if manager is None:
@@ -1189,43 +933,69 @@ async def session(
             "Database has not been initialized."
         )
 
-    async with manager.session_context() as db_session:
-
-        yield db_session
-
-
-@asynccontextmanager
-async def transaction(
-    app: Any = None,
-) -> AsyncIterator[
-    AsyncSession
-]:
-
-    manager = get_database_manager(
-        app
+    return manager.collection(
+        name
     )
 
-    if manager is None:
 
-        raise RuntimeError(
-            "Database has not been initialized."
-        )
+# ============================================================================
+# Compatibility helpers
+# ============================================================================
 
-    async with manager.transaction() as db_session:
 
-        yield db_session
+def is_mongodb_available() -> bool:
+    """
+    Report whether the MongoDB driver is installed.
+    """
+
+    return True
+
+
+def is_sqlalchemy_available() -> bool:
+    """
+    Compatibility helper.
+
+    SQLAlchemy is no longer the database driver for this connection layer.
+    """
+
+    return False
+
+
+def get_engine(
+    app: Any = None,
+):
+    """
+    SQLAlchemy compatibility method.
+
+    MongoDB has no SQLAlchemy engine.
+    """
+
+    return None
+
+
+def get_session_factory(
+    app: Any = None,
+):
+    """
+    SQLAlchemy compatibility method.
+
+    MongoDB uses collections and sessions instead.
+    """
+
+    return None
 
 
 # ============================================================================
 # Health shortcuts
 # ============================================================================
 
+
 async def health_check(
     app: Any = None,
 ) -> bool:
 
-    manager = get_database_manager(
-        app
+    manager = (
+        get_database_manager(app)
     )
 
     if manager is None:
@@ -1245,20 +1015,25 @@ async def ping(
 
 
 # ============================================================================
-# Close
+# Shutdown shortcuts
 # ============================================================================
+
 
 async def close(
     app: Any = None,
 ) -> None:
+    """
+    Close the global MongoDB manager.
+    """
 
     global _database_manager
 
-    manager = get_database_manager(
-        app
+    manager = (
+        get_database_manager(app)
     )
 
     if manager is None:
+
         return
 
     await manager.close()
@@ -1301,94 +1076,19 @@ async def disconnect(
 
 
 # ============================================================================
-# SQLAlchemy compatibility helpers
+# Status
 # ============================================================================
 
-def is_sqlalchemy_available() -> bool:
-
-    return True
-
-
-def get_engine(
-    app: Any = None,
-) -> Optional[
-    AsyncEngine
-]:
-
-    manager = get_database_manager(
-        app
-    )
-
-    if manager is None:
-        return None
-
-    if manager.engine is None:
-
-        manager.create_engine()
-
-    return manager.engine
-
-
-def get_session_factory(
-    app: Any = None,
-):
-
-    manager = get_database_manager(
-        app
-    )
-
-    if manager is None:
-        return None
-
-    if manager.session_factory is None:
-
-        manager.create_engine()
-
-    return manager.session_factory
-
-
-# ============================================================================
-# Database error helper
-# ============================================================================
-
-def is_database_error(
-    exception: BaseException,
-) -> bool:
-
-    return isinstance(
-        exception,
-        SQLAlchemyError,
-    )
-
-
-def database_error_message(
-    exception: BaseException,
-) -> str:
-
-    if isinstance(
-        exception,
-        SQLAlchemyError,
-    ):
-
-        return (
-            "Database operation failed."
-        )
-
-    return (
-        "Unexpected database error."
-    )
-
-
-# ============================================================================
-# Global status
-# ============================================================================
 
 async def status(
     app: Any = None,
 ) -> dict[str, Any]:
+    """
+    Return safe database status.
+    """
 
-    manager = get_database_manager(
-        app
+    manager = (
+        get_database_manager(app)
     )
 
     if manager is None:
@@ -1396,11 +1096,14 @@ async def status(
         return {
             "initialized": False,
             "healthy": False,
-            "engine_created": False,
+            "client_created": False,
             "database": None,
+            "provider": "mongodb",
         }
 
-    healthy = await manager.health_check()
+    healthy = (
+        await manager.health_check()
+    )
 
     result = manager.status()
 
@@ -1412,10 +1115,14 @@ async def status(
 
 
 # ============================================================================
-# Reset helper
+# Reset
 # ============================================================================
 
+
 async def reset_manager() -> None:
+    """
+    Close and remove the global database manager.
+    """
 
     global _database_manager
 
@@ -1430,12 +1137,10 @@ async def reset_manager() -> None:
 # Exports
 # ============================================================================
 
+
 __all__ = [
     "DatabaseConfig",
     "DatabaseManager",
-
-    "normalize_database_url",
-    "redact_database_url",
 
     "get_database_manager",
     "set_database_manager",
@@ -1443,9 +1148,8 @@ __all__ = [
     "initialize",
     "init_database",
 
-    "get_session",
-    "session",
-    "transaction",
+    "get_database",
+    "get_collection",
 
     "health_check",
     "ping",
@@ -1453,13 +1157,13 @@ __all__ = [
     "close",
     "disconnect",
 
+    "is_mongodb_available",
+    "is_sqlalchemy_available",
+
     "get_engine",
     "get_session_factory",
-
-    "is_sqlalchemy_available",
-    "is_database_error",
-    "database_error_message",
 
     "status",
     "reset_manager",
 ]
+
