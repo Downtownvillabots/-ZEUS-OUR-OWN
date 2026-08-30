@@ -534,4 +534,3 @@ __all__ = [
     "configure_from_environment",
     "get_logger",
 ]
-```
