@@ -1,4 +1,3 @@
-```python
 """
 bot.core.logging
 
