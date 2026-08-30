@@ -118,17 +118,33 @@ def create_database(
     settings: Settings,
 ) -> Any:
     """
-    Create the project's existing DatabaseManager.
+    Create the application's database manager.
 
-    The actual connection is not opened here. DatabaseManager creates
-    its engine lazily and initialize() performs the connection health
-    check.
+    MongoDB is the application's database backend.
+
+    The database manager is responsible for:
+        - MongoDB connection lifecycle
+        - Core database
+        - Media shard databases
+        - Shard health
+        - Capacity monitoring
+        - Media location registry
+
+    Connection details come from environment variables.
     """
 
-    from bot.database.connection import (
-        DatabaseConfig,
-        DatabaseManager,
-    )
+    try:
+        from bot.database.connection import (
+            DatabaseConfig,
+            DatabaseManager,
+        )
+    except ImportError as exc:
+        logger.exception(
+            "Database implementation could not be imported."
+        )
+        raise RuntimeError(
+            "MongoDB database implementation is unavailable."
+        ) from exc
 
     database_settings = _safe_get(
         settings,
@@ -144,13 +160,30 @@ def create_database(
         database_config
     )
 
-    logger.info(
-        "Database manager created: %s",
-        database_config.sanitized_url(),
-    )
+    # Do not call PostgreSQL-specific helpers such as
+    # sanitized_url(). The MongoDB manager owns its own
+    # safe diagnostic representation.
+    try:
+        if hasattr(database_config, "sanitized_uri"):
+            logger.info(
+                "Database manager created: %s",
+                database_config.sanitized_uri(),
+            )
+        elif hasattr(database_config, "safe_uri"):
+            logger.info(
+                "Database manager created: %s",
+                database_config.safe_uri(),
+            )
+        else:
+            logger.info(
+                "Database manager created."
+            )
+    except Exception:
+        logger.info(
+            "Database manager created."
+        )
 
     return manager
-
 
 # ============================================================================
 # Redis
