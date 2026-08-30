@@ -1,1 +1,0 @@
-"""Metadata extraction package."""
