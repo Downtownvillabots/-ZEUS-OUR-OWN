@@ -1,8 +1,10 @@
+```dockerfile
 # ============================================================================
 # Production Dockerfile
 # ============================================================================
 
 FROM python:3.12-slim
+
 
 # ============================================================================
 # Python runtime configuration
@@ -14,11 +16,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
+
 # ============================================================================
 # Application directory
 # ============================================================================
 
 WORKDIR /app
+
 
 # ============================================================================
 # System dependencies
@@ -28,21 +32,23 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
-        libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
+
 # ============================================================================
-# Python dependency metadata
+# Python dependency file
 # ============================================================================
 
-COPY pyproject.toml ./
+COPY requirements.txt ./
+
 
 # ============================================================================
 # Python dependencies
 # ============================================================================
 
 RUN python -m pip install --upgrade pip \
-    && python -m pip install .
+    && python -m pip install --no-cache-dir -r requirements.txt
+
 
 # ============================================================================
 # Application source
@@ -52,6 +58,7 @@ COPY bot ./bot
 COPY main.py ./
 COPY run.py ./
 COPY healthcheck.py ./
+
 
 # ============================================================================
 # Runtime directories
@@ -64,6 +71,7 @@ RUN mkdir -p \
         /app/tmp \
         /app/logs
 
+
 # ============================================================================
 # Non-root application user
 # ============================================================================
@@ -74,7 +82,9 @@ RUN useradd \
         botuser \
     && chown -R botuser:botuser /app
 
+
 USER botuser
+
 
 # ============================================================================
 # Health check
@@ -87,11 +97,13 @@ HEALTHCHECK \
     --retries=3 \
     CMD python healthcheck.py --readiness --quiet
 
+
 # ============================================================================
-# Webhook port
+# Application port
 # ============================================================================
 
 EXPOSE 8080
+
 
 # ============================================================================
 # Application startup
@@ -100,3 +112,4 @@ EXPOSE 8080
 ENTRYPOINT ["python", "run.py"]
 
 CMD []
+```
