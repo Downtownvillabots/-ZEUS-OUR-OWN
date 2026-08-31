@@ -17,11 +17,13 @@ Features
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import Optional, Any
 
 from pyrogram import Client, filters
+from pyrogram.handlers import MessageHandler, CallbackQueryHandler  # <-- ADD THIS LINE
 from pyrogram.types import (
     Message,
     CallbackQuery,
