@@ -347,25 +347,43 @@ class FileRepository:
     def set_database(self, db):
         self.db = db
 
-   async def search(self, query: str, filters: Optional[SearchFilters] = None,
-                 limit: int = 100) -> list[dict[str, Any]]:
-    # If no db is set, try to get the global manager
-    if self.db is None:
-        try:
-            from bot.database.connection import get_database_manager
-            mgr = get_database_manager()
-            if mgr:
-                self.db = mgr
-                logger.info("FileRepository: acquired database manager from global.")
-        except ImportError:
-            pass  # fall through
+    def _normalize_db_doc(self, doc: dict) -> dict:
+        """Convert DatabaseManager document format to generic dict."""
+        result = {}
+        for k, v in doc.items():
+            if k == "_id":
+                result["_id"] = v
+            elif k == "media_id":
+                result["file_id"] = v
+            elif k == "telegram_file_id":
+                result["telegram_file_id"] = v
+            elif k == "file_id":
+                result["file_id"] = v
+            elif k == "filename":
+                result["filename"] = v
+            elif k == "file_name":
+                result["file_name"] = v
+            else:
+                result[k] = v
+        return result
 
-    if self.db is None:
-        # No database available – return empty list silently
-        logger.warning("FileRepository: no database available, returning empty result.")
-        return []
+    async def search(self, query: str, filters: Optional[SearchFilters] = None,
+                     limit: int = 100) -> list[dict[str, Any]]:
+        # If no db is set, try to get the global manager
+        if self.db is None:
+            try:
+                from bot.database.connection import get_database_manager
+                mgr = get_database_manager()
+                if mgr:
+                    self.db = mgr
+                    logger.info("FileRepository: acquired database manager from global.")
+            except ImportError:
+                pass  # fall through
 
-    # ... rest of the method as before
+        if self.db is None:
+            # No database available – return empty list silently
+            logger.warning("FileRepository: no database available, returning empty result.")
+            return []
 
         # If db has a direct search_media_text method (DatabaseManager)
         if hasattr(self.db, "search_media_text"):
@@ -386,8 +404,7 @@ class FileRepository:
 
         mongo_query = {}
         if query:
-            # Use text search if index exists, else regex
-            # We'll use regex for simplicity (fallback)
+            # Use regex for fallback
             mongo_query["$or"] = [
                 {"filename": {"$regex": re.escape(query), "$options": "i"}},
                 {"title": {"$regex": re.escape(query), "$options": "i"}},
@@ -410,29 +427,19 @@ class FileRepository:
         docs = await cursor.to_list(length=limit)
         return docs
 
-    def _normalize_db_doc(self, doc: dict) -> dict:
-        """Convert DatabaseManager document format to generic dict."""
-        result = {}
-        for k, v in doc.items():
-            if k == "_id":
-                result["_id"] = v
-            elif k == "media_id":
-                result["file_id"] = v
-            elif k == "telegram_file_id":
-                result["telegram_file_id"] = v
-            elif k == "file_id":
-                result["file_id"] = v
-            elif k == "filename":
-                result["filename"] = v
-            elif k == "file_name":
-                result["file_name"] = v
-            else:
-                result[k] = v
-        return result
-
     async def get_by_id(self, file_id: Any) -> Optional[dict[str, Any]]:
         if self.db is None:
-            raise RuntimeError("FileRepository database is not configured")
+            # Try global
+            try:
+                from bot.database.connection import get_database_manager
+                mgr = get_database_manager()
+                if mgr:
+                    self.db = mgr
+            except ImportError:
+                pass
+            if self.db is None:
+                logger.warning("FileRepository: no database available for get_by_id")
+                return None
 
         if hasattr(self.db, "get_media"):
             doc = await self.db.get_media(str(file_id))
