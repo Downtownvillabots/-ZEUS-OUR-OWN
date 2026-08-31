@@ -51,3 +51,5 @@ lxml>=5.0,<7.0
 
 # System utilities
 psutil>=6.0,<8.0
+
+rapidfuzz>=3.0.0
