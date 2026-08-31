@@ -55,11 +55,8 @@ psutil>=6.0,<8.0
 # Search
 rapidfuzz>=3.0.0
 
-# Shortener (required for verification)
-shortzy>=1.0.0
+# Shortener – correct version range
+shortzy>=0.0.8
 
-# Middleware (optional but installed to remove warnings)
-telegram>=0.0.1   # dummy placeholder – remove if you have actual telegram package
-
-# Additional utilities
-python-magic>=0.4.27   # optional, often used for file detection
+# Optional middleware (ignore warnings)
+# telegram>=0.0.1   # if you have an actual package, uncomment
