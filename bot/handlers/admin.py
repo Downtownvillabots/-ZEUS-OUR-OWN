@@ -29,7 +29,8 @@ from pyrogram.types import (
     InlineKeyboardButton,
 )
 
-from info import ADMINS
+import os
+ADMINS = list(map(int, os.getenv("ADMINS", "").split())) if os.getenv("ADMINS") else []
 
 # ---------------------------------------------------------------------------
 # Service imports
