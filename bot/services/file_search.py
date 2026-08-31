@@ -347,10 +347,25 @@ class FileRepository:
     def set_database(self, db):
         self.db = db
 
-    async def search(self, query: str, filters: Optional[SearchFilters] = None,
-                     limit: int = 100) -> list[dict[str, Any]]:
-        if self.db is None:
-            raise RuntimeError("FileRepository database is not configured")
+   async def search(self, query: str, filters: Optional[SearchFilters] = None,
+                 limit: int = 100) -> list[dict[str, Any]]:
+    # If no db is set, try to get the global manager
+    if self.db is None:
+        try:
+            from bot.database.connection import get_database_manager
+            mgr = get_database_manager()
+            if mgr:
+                self.db = mgr
+                logger.info("FileRepository: acquired database manager from global.")
+        except ImportError:
+            pass  # fall through
+
+    if self.db is None:
+        # No database available – return empty list silently
+        logger.warning("FileRepository: no database available, returning empty result.")
+        return []
+
+    # ... rest of the method as before
 
         # If db has a direct search_media_text method (DatabaseManager)
         if hasattr(self.db, "search_media_text"):
