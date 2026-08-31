@@ -37,6 +37,7 @@ from pyrogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
 )
+from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 
 # ----------------------------------------------------------------------------
 # Imports – tolerant to missing services
