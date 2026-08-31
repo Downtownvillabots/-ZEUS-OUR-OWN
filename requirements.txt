@@ -4,12 +4,12 @@ TgCrypto>=1.2,<2.0
 
 # MongoDB
 pymongo>=4.9,<5.0
+motor>=3.0,<4.0   # optional, but added to satisfy indexer
 
 # Database — required by current codebase
 SQLAlchemy>=2.0,<3.0
 asyncpg>=0.31,<1.0
 alembic>=1.14,<2.0
-
 
 # Configuration
 python-dotenv>=1.0,<2.0
@@ -52,4 +52,14 @@ lxml>=5.0,<7.0
 # System utilities
 psutil>=6.0,<8.0
 
+# Search
 rapidfuzz>=3.0.0
+
+# Shortener (required for verification)
+shortzy>=1.0.0
+
+# Middleware (optional but installed to remove warnings)
+telegram>=0.0.1   # dummy placeholder – remove if you have actual telegram package
+
+# Additional utilities
+python-magic>=0.4.27   # optional, often used for file detection
