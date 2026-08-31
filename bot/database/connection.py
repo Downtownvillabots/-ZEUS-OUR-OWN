@@ -2343,10 +2343,71 @@ DatabaseManager._compat_dispatch = DatabaseCompatibilityAPI._compat_dispatch
 
 
 # =============================================================================
-#  ULTIMATE ADDITIONS – No changes to any existing code above.
-#  These are purely additive enhancements.
+#  PATCHES – fixes for known errors, without modifying original code
 # =============================================================================
 
+# 1. Fix add_user – avoid writing user_id in both $set and $setOnInsert
+_original_add_user = DatabaseManager.add_user
+
+async def _patched_add_user(self, user_id: int, name: Optional[str] = None, **data):
+    user_id = int(user_id)
+    if name is not None:
+        data.setdefault("name", name)
+    # Do NOT include 'user_id' and 'id' in $set – they are already in $setOnInsert
+    set_data = {k: v for k, v in data.items() if k not in ('user_id', 'id')}
+    set_data.setdefault("updated_at", utcnow())
+    # Prepare $setOnInsert: always set user_id, id, created_at
+    on_insert = {
+        "user_id": user_id,
+        "id": user_id,
+        "created_at": data.get("created_at", utcnow()),
+    }
+    await self.users.update_one(
+        {"user_id": user_id},
+        {"$set": set_data, "$setOnInsert": on_insert},
+        upsert=True,
+    )
+    return await self.get_user(user_id)
+
+DatabaseManager.add_user = _patched_add_user
+
+
+# 2. Fix initialize_indexes – skip index creation if index already exists with conflicting options
+_original_initialize_indexes = DatabaseManager.initialize_indexes
+
+async def _patched_initialize_indexes(self):
+    try:
+        await _original_initialize_indexes(self)
+    except Exception as e:
+        # If it's an IndexOptionsConflict, we can ignore it – index already exists
+        # Other errors we re-raise
+        if isinstance(e, PyMongoError) and "Index already exists with a different name" in str(e):
+            logger.warning("Index conflict detected – skipping creation (index already exists).")
+            # Optionally, we could log the error but not raise
+            return
+        raise
+
+DatabaseManager.initialize_indexes = _patched_initialize_indexes
+
+
+# 3. Patch _initialize_media_indexes similarly (if needed)
+_original_initialize_media_indexes = DatabaseManager._initialize_media_indexes
+
+async def _patched_initialize_media_indexes(self, runtime):
+    try:
+        await _original_initialize_media_indexes(self, runtime)
+    except Exception as e:
+        if isinstance(e, PyMongoError) and "Index already exists with a different name" in str(e):
+            logger.warning("Media index conflict on shard %s – skipping creation.", runtime.shard_id)
+            return
+        raise
+
+DatabaseManager._initialize_media_indexes = _patched_initialize_media_indexes
+
+
+# =============================================================================
+#  ULTIMATE ADDITIONS – caching, bulk ops, metrics, CLI, etc.
+# =============================================================================
 
 # ---------- Local caching layer ----------
 @dataclass
