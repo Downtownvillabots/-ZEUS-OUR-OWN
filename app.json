@@ -52,7 +52,7 @@
       "description": "Optional force subscription channel IDs. Bot must be admin in these channels.",
       "required": false
     },
-    "DATABASE_URI": {
+    "USER_DATABASE": {
       "description": "MongoDB URI from https://www.mongodb.com.",
       "required": true
     },

@@ -87,7 +87,7 @@
 | `BOT_TOKEN` | Yes | Telegram bot token from BotFather | Used to authenticate the bot. |
 | `API_ID` | Yes | Telegram API ID from my.telegram.org | Required for Pyrogram client. |
 | `API_HASH` | Yes | Telegram API hash from my.telegram.org | Required for Pyrogram client. |
-| `DATABASE_URI` | Yes | Primary MongoDB connection URI | Stores indexed files, users, groups, etc. |
+| `USER_DATABASE` | Yes | Primary MongoDB connection URI | Stores indexed files, users, groups, etc. |
 | `LOG_CHANNEL` | Yes | Telegram log channel ID (e.g., `-100...`) | Sends startup logs, errors, and user/group notifications. |
 | `ADMINS` | Yes | Space‑separated Telegram user IDs or usernames | Grants admin access to bot commands. |
 
@@ -174,7 +174,7 @@ cp .env.example .env
 BOT_TOKEN=123456:your_bot_token
 API_ID=123456
 API_HASH=your_api_hash
-DATABASE_URI=mongodb+srv://username:db-password@cluster.mongodb.net/
+USER_DATABASE=mongodb+srv://username:db-password@cluster.mongodb.net/
 DATABASE_NAME=Cluster0
 COLLECTION_NAME=downtown_villa_files
 ADMINS=123456789
@@ -358,11 +358,11 @@ Indexing is handled by forwarding channel messages or sending supported Telegram
 
 ### Bot does not start
 
-Check that `BOT_TOKEN`, `API_ID`, `API_HASH`, `DATABASE_URI`, `LOG_CHANNEL`, and `ADMINS` are set correctly.
+Check that `BOT_TOKEN`, `API_ID`, `API_HASH`, `USER_DATABASE`, `LOG_CHANNEL`, and `ADMINS` are set correctly.
 
 ### MongoDB connection error
 
-Check that `DATABASE_URI` is valid, the database user has access, and your hosting provider IP is allowed in MongoDB Atlas.
+Check that `USER_DATABASE` is valid, the database user has access, and your hosting provider IP is allowed in MongoDB Atlas.
 
 ### Stream links are wrong
 

@@ -83,7 +83,7 @@ STAR_PREMIUM_PLANS = {
 # ============================
 # MongoDB Configuration – Unlimited DB Support
 # ============================
-USER_DATABASE = environ.get('USER_DATABASE', environ.get('DATABASE_URI', ''))   # user DB URI (users/groups/settings)
+USER_DATABASE = environ.get('USER_DATABASE', environ.get('USER_DATABASE', ''))   # user DB URI (users/groups/settings)
 DATABASE_NAME = environ.get('DATABASE_NAME', "Cluster0")
 COLLECTION_NAME = environ.get('COLLECTION_NAME', 'downtown_villa_files')
 
@@ -122,8 +122,8 @@ if not MEDIA_DATABASE_URIS:
 # Determine if multiple media DBs are enabled
 MULTIPLE_DB = len(MEDIA_DATABASE_URIS) > 1 or is_enabled(environ.get('MULTIPLE_DB', "False"), False)
 
-# For backward compatibility (old code may still import DATABASE_URI) – but we are removing it
-# Do NOT define DATABASE_URI here – remove all references to it in the project.
+# For backward compatibility (old code may still import USER_DATABASE) – but we are removing it
+# Do NOT define USER_DATABASE here – remove all references to it in the project.
 
 
 # ============================
@@ -301,5 +301,5 @@ LOG_STR += ("Long IMDB storyline enabled." if LONG_IMDB_DESCRIPTION else "LONG_I
 LOG_STR += ("Spell Check Mode is enabled, bot will be suggesting related movies if movie name is misspelled.\n" if SPELL_CHECK_REPLY else "Spell Check Mode is disabled.\n")
 
 # Ensure legacy compatibility
-DATABASE_URI2 = _DB_URIS[1] if len(_DB_URIS) > 1 else DATABASE_URI
+DATABASE_URI2 = _DB_URIS[1] if len(_DB_URIS) > 1 else USER_DATABASE
 DATABASE_URI3 = _DB_URIS[2] if len(_DB_URIS) > 2 else DATABASE_URI2
