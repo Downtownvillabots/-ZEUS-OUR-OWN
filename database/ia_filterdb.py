@@ -91,6 +91,16 @@ def _initialize_database_pool():
     _all_labels = []
     _all_uris = []
 
+    # ---- USER DATABASE (separate) ----
+    if USER_DATABASE:
+        user_client = AsyncIOMotorClient(USER_DATABASE, serverSelectionTimeoutMS=5000)
+        db = user_client[DATABASE_NAME]
+        USER_DB_LABEL = get_db_label(USER_DATABASE)
+    else:
+        db = None
+        USER_DB_LABEL = "unknown"
+
+    # ---- MEDIA DATABASES (pool) ----
     for uri in MEDIA_DATABASE_URIS:
         try:
             client_temp = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)
@@ -102,23 +112,24 @@ def _initialize_database_pool():
             _all_uris.append(uri)
             _all_labels.append(get_db_label(uri))
         except Exception as e:
-            logger.error(f"Failed to connect to DB at {uri}: {e}")
+            logger.error(f"Failed to connect to media DB {uri}: {e}")
 
     if not _all_dbs:
-        raise RuntimeError("No valid MongoDB connection found.")
+        raise RuntimeError("No media MongoDB connections found.")
 
     for db_temp in _all_dbs:
         inst_temp = Instance.from_db(db_temp)
         model = _create_model(inst_temp)
         _all_models.append(model)
 
+    # Backward compatibility aliases (media DBs)
     client = _all_clients[0]
     client2 = _all_clients[1] if len(_all_clients) > 1 else client
     client3 = _all_clients[2] if len(_all_clients) > 2 else client2
 
-    db = _all_dbs[0]
-    db2 = _all_dbs[1] if len(_all_dbs) > 1 else db
-    db3 = _all_dbs[2] if len(_all_dbs) > 2 else db2
+    # media db aliases (db2, db3 are not used for user DB, they are media DBs)
+    db2 = _all_dbs[0] if _all_dbs else db
+    db3 = _all_dbs[1] if len(_all_dbs) > 1 else db2
 
     Media = _all_models[0]
     Media2 = _all_models[1] if len(_all_models) > 1 else Media
@@ -128,12 +139,10 @@ def _initialize_database_pool():
     MODELS = _all_models
     COLLECTIONS = [db_temp[COLLECTION_NAME] for db_temp in _all_dbs]
     DB_LABELS = _all_labels
- 
+
 
 _initialize_database_pool()
 
-# Add this after the function call
-USER_DB_LABEL = get_db_label(USER_DATABASE) if USER_DATABASE else "unknown"
 # ============================================================
 # DB SIZE
 # ============================================================
