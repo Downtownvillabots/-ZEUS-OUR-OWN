@@ -1295,8 +1295,7 @@ async def build_database_page():
         f"📚 Collection: <code>{html_escape(COLLECTION_NAME)}</code>\n"
         f"🗄️ Databases: <b>{len(databases)}</b>\n\n"
     )
-
-       for item in databases:
+    for item in databases:
         text += (
             f"{status_icon(item.get('status'))} "
             f"<b>{html_escape(item.get('label'))}</b>\n"
