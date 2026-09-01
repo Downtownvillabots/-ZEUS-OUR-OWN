@@ -1,11 +1,16 @@
-<h1 align="center">DreamxBotz Auto Filter Bot</h1>
+Here is the **complete README.md** file with **DOWNTOWN VILLA** branding. Copy and paste the entire content below into your `README.md` file.
+
+---
+
+```markdown
+<h1 align="center">DOWNTOWN VILLA BOT</h1>
 
 <p align="center">
   <b>Powerful Telegram auto-filter, file indexing, verification, premium, and streaming bot.</b>
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DreamXBotz/Pics/main/dreamxbotz.jpg" alt="DreamxBotz Logo" width="220">
+  <img src="https://raw.githubusercontent.com/DreamXBotz/Pics/main/dreamxbotz.jpg" alt="DOWNTOWN VILLA Logo" width="220">
 </p>
 
 <p align="center">
@@ -15,10 +20,10 @@
 </p>
 
 <p align="center">
-  <a href="https://t.me/Princess_V4_bot">
+  <a href="https://t.me/DownTownVillaBot">
     <img src="https://img.shields.io/badge/Demo%20Bot-Click%20Here-blue?style=for-the-badge&logo=telegram" alt="Demo Bot">
   </a>
-  <a href="https://t.me/Deendayal_Support_Group">
+  <a href="https://t.me/DownTownVillaSupport">
     <img src="https://img.shields.io/badge/Support%20Group-Join-blue?style=for-the-badge&logo=telegram" alt="Support Group">
   </a>
   <a href="LICENSE">
@@ -34,18 +39,15 @@
   <img src="https://img.shields.io/badge/Verification-3%20Step-red?style=flat-square" alt="Verification">
 </p>
 
-DreamxBotz is a Telegram auto-filter bot for indexing files from channels/groups, searching them quickly, and sharing files through bot commands. It supports MongoDB storage, group settings, force subscription, verification, premium users, streaming links, and admin tools.
+**DOWNTOWN VILLA BOT** is a Telegram auto-filter bot for indexing files from channels/groups, searching them quickly, and sharing files through bot commands. It supports MongoDB storage, group settings, force subscription, verification, premium users, streaming links, and admin tools.
 
 > This project is intended for educational use. Use it responsibly and follow Telegram rules, hosting provider rules, and copyright laws.
-
-<!-- > ## ⚠ <u>Under Maintenance</u> ⚠
-> This repository is currently under maintenance. Please **DO NOT deploy** until further notice. -->
 
 ## Table Of Contents
 
 - [Features](#features)
 - [Requirements](#requirements)
-- [Environment Variables](#required-environment-variables)
+- [Environment Variables](#environment-variables)
 - [Deploy On Render](#deploy-on-render)
 - [Deploy On Heroku](#deploy-on-heroku)
 - [Deploy With Docker](#deploy-with-docker)
@@ -80,54 +82,89 @@ DreamxBotz is a Telegram auto-filter bot for indexing files from channels/groups
 - Telegram `API_ID` and `API_HASH` from [my.telegram.org](https://my.telegram.org)
 - A log channel where the bot is added as admin
 
-## Quick Links
+## Environment Variables
 
-| Link | URL |
-| --- | --- |
-| Demo Bot | [Open on Telegram](https://t.me/Princess_V4_bot) |
-| Support Group | [Join Support](https://t.me/Deendayal_Support_Group) |
-| Telegram API | [my.telegram.org](https://my.telegram.org) |
-| BotFather | [Create Bot](https://t.me/BotFather) |
-| MongoDB Atlas | [Create Database](https://www.mongodb.com) |
+### Required
 
-## Required Environment Variables
+| Variable | Required | Description | Usage |
+| --- | --- | --- | --- |
+| `BOT_TOKEN` | Yes | Telegram bot token from BotFather | Used to authenticate the bot. |
+| `API_ID` | Yes | Telegram API ID from my.telegram.org | Required for Pyrogram client. |
+| `API_HASH` | Yes | Telegram API hash from my.telegram.org | Required for Pyrogram client. |
+| `DATABASE_URI` | Yes | Primary MongoDB connection URI | Stores indexed files, users, groups, etc. |
+| `LOG_CHANNEL` | Yes | Telegram log channel ID (e.g., `-100...`) | Sends startup logs, errors, and user/group notifications. |
+| `ADMINS` | Yes | Space‑separated Telegram user IDs or usernames | Grants admin access to bot commands. |
 
-| Variable | Required | Description |
-| --- | --- | --- |
-| `BOT_TOKEN` | Yes | Telegram bot token from BotFather |
-| `API_ID` | Yes | Telegram API ID from my.telegram.org |
-| `API_HASH` | Yes | Telegram API hash from my.telegram.org |
-| `DATABASE_URI` | Yes | MongoDB connection URI |
-| `LOG_CHANNEL` | Yes | Telegram log channel ID, usually starts with `-100` |
-| `ADMINS` | Yes | Space-separated Telegram user IDs or usernames |
-| `CHANNELS` | Recommended | Space-separated channel/group IDs for indexing |
+### Recommended
 
-## Common Optional Variables
+| Variable | Recommended | Description | Usage |
+| --- | --- | --- | --- |
+| `CHANNELS` | Recommended | Space‑separated channel/group IDs for indexing | Bot indexes files from these chats. |
+| `DATABASE_NAME` | Recommended | MongoDB database name (default: `Cluster0`) | Specifies the database to use. |
+| `COLLECTION_NAME` | Recommended | MongoDB collection name (default: `downtown_villa_files`) | Stores the indexed file records. |
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `DATABASE_NAME` | `Cluster0` | MongoDB database name |
-| `COLLECTION_NAME` | `dreamcinezone_files` | MongoDB collection name |
-| `BIN_CHANNEL` | `-100` | Channel used for file/bin logs |
-| `PREMIUM_LOGS` | `-100` | Premium activity log channel |
-| `AUTH_CHANNELS` | `-100` | Force subscription channel IDs |
-| `AUTH_REQ_CHANNELS` | `-100` | Request-to-join force subscription channel IDs |
-| `REQST_CHANNEL_ID` | `-100` | Request channel ID |
-| `SUPPORT_CHAT_ID` | `-100` | Support group ID |
-| `SUPPORT_CHAT` | `https://t.me/` | Support group link |
-| `FQDN` | Web bind address | Public domain for stream links |
-| `PORT` | `8080` | Web server port |
-| `HAS_SSL` | `True` | Use HTTPS in generated stream URLs |
-| `NO_PORT` | `False` | Hide port in generated HTTP stream URLs |
-| `STREAM_MODE` | `True` | Enable stream mode |
-| `PREMIUM_STREAM_MODE` | `False` | Restrict stream mode to premium users |
-| `MAINTENANCE` | `False` | Enable maintenance mode |
-| `IS_VERIFY` | `False` | Enable verification system |
-| `SHORTENER_API` | Empty | Shortener API key for verification links |
-| `SHORTENER_WEBSITE` | Empty | Shortener domain |
-| `TMDB_API_KEY` | Empty | TMDB API key for movie metadata |
-| `TMDB_BEARER_TOKEN` | Empty | Optional TMDB bearer token |
-| `TELEGRAPH_ACCESS_TOKEN` | Empty | Optional Telegraph access token |
+### Optional
+
+| Variable | Default | Description | Usage |
+| --- | --- | --- | --- |
+| `DATABASE_URI_1` | Empty | Additional MongoDB URI (for multi‑DB support) | Adds a second database to the pool. |
+| `DATABASE_URI_2` | Empty | Additional MongoDB URI | Adds a third database to the pool. |
+| `DATABASE_URI_3` | Empty | Additional MongoDB URI | Adds a fourth database to the pool. |
+| `BIN_CHANNEL` | `-100` | Channel used for file/bin logs | Stores temporary media for streaming. |
+| `PREMIUM_LOGS` | `-100` | Premium activity log channel | Sends premium purchase and expiry logs. |
+| `AUTH_CHANNELS` | `-100` | Force subscription channel IDs | Users must join these channels to use the bot. |
+| `AUTH_REQ_CHANNELS` | `-100` | Request‑to‑join force subscription channel IDs | Users request to join; bot approves manually. |
+| `REQST_CHANNEL_ID` | `-100` | Request channel ID | Stores user file requests. |
+| `SUPPORT_CHAT_ID` | `-100` | Support group ID | For feedback and support requests. |
+| `SUPPORT_CHAT` | `https://t.me/` | Support group link | Displayed to users when needed. |
+| `FQDN` | Web bind address | Public domain for stream links | Used to generate stream/download URLs. |
+| `PORT` | `8080` | Web server port | Port on which the streaming server runs. |
+| `HAS_SSL` | `True` | Use HTTPS in generated stream URLs | Ensures secure links. |
+| `NO_PORT` | `False` | Hide port in generated HTTP stream URLs | Removes `:port` from URLs when behind a proxy. |
+| `STREAM_MODE` | `True` | Enable stream mode | Adds stream/download buttons to file results. |
+| `PREMIUM_STREAM_MODE` | `False` | Restrict stream mode to premium users | If `True`, only premium users get stream links. |
+| `MAINTENANCE` | `False` | Enable maintenance mode | Disables all bot commands for non‑admins. |
+| `IS_VERIFY` | `False` | Enable verification system | Requires users to verify via shorteners. |
+| `SHORTENER_API` | Empty | Shortener API key for verification links | Used for the first verification link. |
+| `SHORTENER_WEBSITE` | Empty | Shortener domain | Domain for the first shortener. |
+| `SHORTENER_API2` | Empty | Shortener API key for second verification | Used for the second verification link. |
+| `SHORTENER_WEBSITE2` | Empty | Shortener domain for second shortener | Domain for the second shortener. |
+| `SHORTENER_API3` | Empty | Shortener API key for third verification | Used for the third verification link. |
+| `SHORTENER_WEBSITE3` | Empty | Shortener domain for third shortener | Domain for the third shortener. |
+| `TMDB_API_KEY` | Empty | TMDB API key for movie metadata | Enables TMDB poster/data in search results and movie notifications. |
+| `TMDB_BEARER_TOKEN` | Empty | Optional TMDB bearer token | Alternative to API key. |
+| `TELEGRAPH_ACCESS_TOKEN` | Empty | Optional Telegraph access token | Used for uploading media info pages. |
+| `MOVIE_UPDATE_NOTIFICATION` | `False` | Toggle movie update notifications | Sends updates to `MOVIE_UPDATE_CHANNEL` when new files are indexed. |
+| `MOVIE_UPDATE_CHANNEL` | `-100` | Channel for movie update notifications | If `MOVIE_UPDATE_NOTIFICATION` is `True`, posts go here. |
+| `DREAMXBOTZ_IMAGE_FETCH` | `True` | Enable image fetching for TMDB posters | Fetches and resizes images for better display. (Legacy name kept for compatibility) |
+| `LINK_PREVIEW` | `False` | Shows link preview in notification msg instead of image | If `True`, sends a text link instead of an image. |
+| `ABOVE_PREVIEW` | `True` | Shows link preview above the text in notification msg | If `True`, places link above text. |
+| `LANDSCAPE_POSTER` | `True` | Shows landscape poster in notification msg | Uses backdrop instead of portrait. |
+| `LONG_IMDB_DESCRIPTION` | `False` | Long IMDB description | Enables full plot in search results. |
+| `SPELL_CHECK_REPLY` | `True` | Spell check mode | Suggests correct movie names on misspelling. |
+| `MELCOW_NEW_USERS` | `False` | Welcome new users in groups | Sends a welcome message when new members join. |
+| `PROTECT_CONTENT` | `False` | Protect content | Prevents forwarding of files sent by the bot. |
+| `PM_SEARCH` | `True` | PM search on/off | Allows search in private chat. |
+| `EMOJI_MODE` | `True` | Emoji status | Adds emoji reactions to messages. |
+| `BUTTON_MODE` | `False` | Button mode | If `True`, file results shown as buttons; otherwise as text links. |
+| `MAX_B_TN` | `5` | Maximum buttons per row | Controls number of file buttons per row. |
+| `AUTO_FFILTER` | `True` | Auto filter on/off | Automatically filters files when a query is sent. |
+| `AUTO_DELETE` | `True` | Auto delete on/off | Automatically deletes search messages after a certain time. |
+| `DELETE_TIME` | `300` | Auto‑delete time (seconds) | Time before auto‑deleting search results. |
+| `CUSTOM_FILE_CAPTION` | Empty | Custom caption for files | Overrides default captions with your own text. |
+| `IMDB_TEMPLATE` | Default template | Custom IMDB result template | Customize how movie details appear. |
+| `MAX_LIST_ELM` | `10` | Max elements in list | Limits list of titles in search results. |
+| `INDEX_REQ_CHANNEL` | `LOG_CHANNEL` | Index request channel | Channel for indexing requests. |
+| `NO_RESULTS_MSG` | `True` | Send "no results" message to log channel | If `True`, logs failed searches. |
+| `GRP_LNK` | `https://t.me/` | Group link | Link to your main movie group. |
+| `OWNER_LNK` | `https://t.me/` | Owner link | Link to bot owner. |
+| `UPDATE_CHNL_LNK` | `https://t.me/` | Update channel link | Link to your update channel. |
+| `QR_CODE` | Empty | Payment QR code image URL | Displayed in premium purchase menu. |
+| `OWNER_UPI_ID` | Empty | UPI ID for payments | For UPI payments. |
+| `PREMIUM_LOGS` | `-100` | Premium logs channel | Logs premium transactions. |
+| `REACTIONS` | List of emojis | Reactions used in EMOJI_MODE | Default reactions set. |
+
+**Note:** Some variable names still contain "DREAMXBOTZ" (e.g., `DREAMXBOTZ_IMAGE_FETCH`) due to backward compatibility with the original code. They function as described.
 
 ## Example `.env`
 
@@ -143,7 +180,7 @@ API_ID=123456
 API_HASH=your_api_hash
 DATABASE_URI=mongodb+srv://username:db-password@cluster.mongodb.net/
 DATABASE_NAME=Cluster0
-COLLECTION_NAME=dreamcinezone_files
+COLLECTION_NAME=downtown_villa_files
 ADMINS=123456789
 CHANNELS=-1001234567890
 LOG_CHANNEL=-1001234567890
@@ -154,10 +191,6 @@ NO_PORT=True
 ```
 
 ## Deploy On Render
-
-<p>
-  <img src="https://img.shields.io/badge/Render-Docker%20Deploy-46E3B7?style=for-the-badge&logo=render&logoColor=white" alt="Render Deploy">
-</p>
 
 1. Fork or upload this repository to GitHub.
 2. Create a new Render Web Service.
@@ -175,10 +208,6 @@ NO_PORT=True
 
 ## Deploy On Heroku
 
-<p>
-  <img src="https://img.shields.io/badge/Heroku-Supported-430098?style=for-the-badge&logo=heroku&logoColor=white" alt="Heroku Supported">
-</p>
-
 This repository includes `app.json`, `Procfile`, and `heroku.yml`, so it can also run on Heroku-style deployments.
 
 1. Create a Heroku app.
@@ -188,20 +217,16 @@ This repository includes `app.json`, `Procfile`, and `heroku.yml`, so it can als
 
 ## Deploy With Docker
 
-<p>
-  <img src="https://img.shields.io/badge/Docker-Build%20%26%20Run-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Build">
-</p>
-
 Build the image:
 
 ```bash
-docker build -t dreamxbotz .
+docker build -t downtownvilla .
 ```
 
 Run the container:
 
 ```bash
-docker run --env-file .env -p 8080:8080 dreamxbotz
+docker run --env-file .env -p 8080:8080 downtownvilla
 ```
 
 For Docker Compose, `.env` is optional at compose-load time, but the bot still needs required variables from `.env` or your shell environment.
@@ -234,11 +259,6 @@ python bot.py
 ```
 
 ## Commands
-
-<p>
-  <img src="https://img.shields.io/badge/User%20Commands-Available-2ea44f?style=flat-square" alt="User Commands">
-  <img src="https://img.shields.io/badge/Admin%20Commands-Available-d73a49?style=flat-square" alt="Admin Commands">
-</p>
 
 ### User Commands
 
@@ -333,10 +353,6 @@ Indexing is handled by forwarding channel messages or sending supported Telegram
 
 ## Public Repo Safety
 
-<p>
-  <img src="https://img.shields.io/badge/Security-Keep%20Secrets%20Private-critical?style=for-the-badge" alt="Security">
-</p>
-
 - Do not commit `.env`, session files, logs, or virtual environments.
 - Rotate any token or API key that was previously committed publicly.
 - Keep real values only in your hosting provider environment variables.
@@ -364,10 +380,10 @@ This project is licensed under the [MIT License](LICENSE).
 
 Special thanks to:
 
-- [⌯ Ꭺɴᴏɴʏᴍᴏᴜs | ×͜× |](https://t.me/BeingXAnonymous)
-- [⌯ ᴢɪsʜᴀɴ | ×͜× |](https://t.me/IM_JISSHU)
-- [⌯ ʙʜᴀʀᴀᴛʜ | ×͜× |](https://t.me/Bharath_boy)
-- [Harshal Purohit Edits](https://github.com/HarshalPurohitEdits)
-- [Support Group](https://t.me/Deendayal_Support_Group)
 
-Thanks to the DreamXBotz community and all contributors who worked on the original project and related modules.
+Thanks to the original DreamxBotz community and all contributors who worked on the base project. DOWNTOWN VILLA is a rebranded fork with enhanced features.
+```
+
+---
+
+You can now copy this entire block and paste it into `README.md`. No additional changes are needed.
