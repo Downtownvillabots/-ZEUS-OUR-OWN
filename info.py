@@ -300,6 +300,3 @@ LOG_STR += (f"CUSTOM_FILE_CAPTION enabled with value {CUSTOM_FILE_CAPTION}, your
 LOG_STR += ("Long IMDB storyline enabled." if LONG_IMDB_DESCRIPTION else "LONG_IMDB_DESCRIPTION is disabled, Plot will be shorter.\n")
 LOG_STR += ("Spell Check Mode is enabled, bot will be suggesting related movies if movie name is misspelled.\n" if SPELL_CHECK_REPLY else "Spell Check Mode is disabled.\n")
 
-# Ensure legacy compatibility
-DATABASE_URI2 = _DB_URIS[1] if len(_DB_URIS) > 1 else USER_DATABASE
-DATABASE_URI3 = _DB_URIS[2] if len(_DB_URIS) > 2 else DATABASE_URI2
