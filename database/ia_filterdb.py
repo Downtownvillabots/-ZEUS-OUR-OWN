@@ -19,9 +19,8 @@ from utils import get_settings, save_group_settings
 from info import (
     COLLECTION_NAME, COVERX, DATABASE_NAME, DATABASE_URI, DATABASE_URI2, DATABASE_URI3,
     INDEX_CAPTION, MAX_B_TN, MULTIPLE_DB, ULTRA_FAST_MODE, USE_CAPTION_FILTER,
-    DATABASE_URIS
+    DATABASE_URIS, MEDIA_DATABASE_URIS
 )
-
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -91,7 +90,7 @@ def _initialize_database_pool():
     _all_labels = []
     _all_uris = []
 
-    for uri in DATABASE_URIS:
+    for uri in MEDIA_DATABASE_URIS:
         try:
             client_temp = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)
             db_temp = client_temp[DATABASE_NAME]
