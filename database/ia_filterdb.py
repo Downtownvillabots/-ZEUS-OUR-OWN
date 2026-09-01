@@ -81,7 +81,7 @@ def _initialize_database_pool():
     global _all_clients, _all_dbs, _all_instances, _all_models
     global _all_labels, _all_uris
     global client, client2, client3, db, db2, db3, Media, Media2, Media3
-    global DBS, MODELS, COLLECTIONS, DB_LABELS
+    global DBS, MODELS, COLLECTIONS, DB_LABELS, USER_DB_LABEL
 
     _all_clients = []
     _all_dbs = []
@@ -127,9 +127,12 @@ def _initialize_database_pool():
     MODELS = _all_models
     COLLECTIONS = [db_temp[COLLECTION_NAME] for db_temp in _all_dbs]
     DB_LABELS = _all_labels
-    USER_DB_LABEL = get_db_label(DATABASE_URI) if DATABASE_URI else "unknown"
+ 
 
 _initialize_database_pool()
+
+# Add this after the function call
+USER_DB_LABEL = get_db_label(DATABASE_URI) if DATABASE_URI else "unknown"
 # ============================================================
 # DB SIZE
 # ============================================================
