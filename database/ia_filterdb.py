@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple, Union, Any
 from collections import defaultdict
 from datetime import datetime, timedelta
 from functools import lru_cache
+from urllib.parse import urlparse
 
 from pyrogram.file_id import FileId
 from pymongo.errors import DuplicateKeyError, PyMongoError, ConnectionFailure, OperationFailure
@@ -41,12 +42,28 @@ def compile_regex(pattern: str) -> re.Pattern:
     return re.compile(pattern, re.IGNORECASE)
 
 # ============================================================
+# HELPER: EXTRACT CLUSTER LABEL FROM URI
+# ============================================================
+def get_db_label(uri: str) -> str:
+    """Extract a human-readable label from the MongoDB URI."""
+    try:
+        parsed = urlparse(uri)
+        host = parsed.hostname or "unknown"
+        # For Atlas URIs, host is like cluster0.mongodb.net
+        # We can return the host directly
+        return host
+    except Exception:
+        return "unknown"
+
+# ============================================================
 # DYNAMIC DATABASE POOL (UNLIMITED SUPPORT)
 # ============================================================
 _all_clients: List[AsyncIOMotorClient] = []
 _all_dbs: List[AsyncIOMotorDatabase] = []
 _all_instances: List[Instance] = []
 _all_models: List[type] = []
+_all_labels: List[str] = []          # human-readable labels for admin panel
+_all_uris: List[str] = []
 
 def _create_model(instance: Instance) -> type:
     """Create and register a Media model with the given umongo instance."""
@@ -82,13 +99,17 @@ def _create_model(instance: Instance) -> type:
 def _initialize_database_pool():
     """Initialize all database connections from the URIs."""
     global _all_clients, _all_dbs, _all_instances, _all_models
+    global _all_labels, _all_uris
     global client, client2, client3, db, db2, db3, Media, Media2, Media3
+    global DBS, MODELS, COLLECTIONS
 
     # Reset lists
     _all_clients = []
     _all_dbs = []
     _all_instances = []
     _all_models = []
+    _all_labels = []
+    _all_uris = []
 
     for uri in DATABASE_URIS:
         try:
@@ -98,6 +119,8 @@ def _initialize_database_pool():
             _all_clients.append(client_temp)
             _all_dbs.append(db_temp)
             _all_instances.append(instance_temp)
+            _all_uris.append(uri)
+            _all_labels.append(get_db_label(uri))
         except Exception as e:
             logger.error(f"Failed to connect to DB at {uri}: {e}")
 
@@ -123,12 +146,15 @@ def _initialize_database_pool():
     Media2 = _all_models[1] if len(_all_models) > 1 else Media
     Media3 = _all_models[2] if len(_all_models) > 2 else Media2
 
+    # Expose lists
+    DBS = _all_dbs
+    MODELS = _all_models
+    COLLECTIONS = [db_temp[COLLECTION_NAME] for db_temp in _all_dbs]
+    DB_LABELS = _all_labels
+    DB_URIS = _all_uris
+
 # Initialize on import
 _initialize_database_pool()
-
-DBS = _all_dbs
-MODELS = _all_models
-COLLECTIONS = [db_temp[COLLECTION_NAME] for db_temp in _all_dbs]
 
 # ============================================================
 # DATABASE HEALTH & SIZE
@@ -192,15 +218,17 @@ async def save_file(media) -> Tuple[bool, int]:
     if not file_name:
         file_name = "Unknown File"
 
-    for idx, model in enumerate(MODELS):
+    # Check duplicates across ALL databases using COLLECTIONS
+    for idx, collection in enumerate(COLLECTIONS):
         try:
-            exists = await model.collection.find_one({"file_id": file_id})
+            exists = await collection.find_one({"file_id": file_id})
             if exists:
-                logger.info(f"[SKIP] '{file_name}' already in DB{idx+1}.")
+                logger.info(f"[SKIP] '{file_name}' already in DB{idx+1} ({DB_LABELS[idx]}).")
                 return False, 0
         except Exception as e:
             logger.error(f"Duplicate check error in DB{idx+1}: {e}")
 
+    # Choose the smallest database (by size)
     target_index = 0
     if len(DBS) > 1:
         min_size = float("inf")
@@ -211,7 +239,8 @@ async def save_file(media) -> Tuple[bool, int]:
                 target_index = idx
 
     target_model = MODELS[target_index]
-    target_db_name = f"DB{target_index+1}"
+    target_collection = COLLECTIONS[target_index]
+    target_db_name = f"DB{target_index+1} ({DB_LABELS[target_index]})"
 
     try:
         cover_to_use = getattr(getattr(media, "cover", None), "file_id", None)
@@ -241,6 +270,7 @@ async def save_file(media) -> Tuple[bool, int]:
         return False, 0
     except OperationFailure as e:
         logger.exception(f"[DB ERROR] {target_db_name}: {e}")
+        # Retry with next DB
         if target_index + 1 < len(MODELS):
             try:
                 record2 = MODELS[target_index + 1](**record.to_mongo())
@@ -254,7 +284,7 @@ async def save_file(media) -> Tuple[bool, int]:
         return False, 3
 
 # ============================================================
-# GET SEARCH RESULTS (with caching and error handling)
+# GET SEARCH RESULTS (using COLLECTIONS list directly)
 # ============================================================
 async def get_search_results(
     chat_id,
@@ -311,11 +341,11 @@ async def get_search_results(
             limit = max_results + 1
             fetch_limit = offset + limit
             tasks = [
-                model.collection.find(filter_mongo)
+                collection.find(filter_mongo)
                 .sort("$natural", -1)
                 .limit(fetch_limit)
                 .to_list(length=fetch_limit)
-                for model in MODELS
+                for collection in COLLECTIONS
             ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             files = []
@@ -333,15 +363,15 @@ async def get_search_results(
         else:
             fetch_limit = offset + max_results
             count_tasks = [
-                model.collection.count_documents(filter_mongo)
-                for model in MODELS
+                collection.count_documents(filter_mongo)
+                for collection in COLLECTIONS
             ]
             find_tasks = [
-                model.collection.find(filter_mongo)
+                collection.find(filter_mongo)
                 .sort("$natural", -1)
                 .limit(fetch_limit)
                 .to_list(length=fetch_limit)
-                for model in MODELS
+                for collection in COLLECTIONS
             ]
             count_results, find_results = await asyncio.gather(
                 asyncio.gather(*count_tasks, return_exceptions=True),
@@ -397,10 +427,10 @@ async def get_bad_files(query, file_type=None):
         filter_mongo["file_type"] = file_type
 
     tasks = [
-        model.collection.find(filter_mongo)
+        collection.find(filter_mongo)
         .sort("$natural", -1)
         .to_list(300)
-        for model in MODELS
+        for collection in COLLECTIONS
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     files = []
@@ -418,8 +448,8 @@ async def get_bad_files(query, file_type=None):
 async def get_file_details(query):
     filter = {"file_id": query}
     tasks = [
-        model.collection.find(filter).to_list(length=1)
-        for model in MODELS
+        collection.find(filter).to_list(length=1)
+        for collection in COLLECTIONS
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     for res in results:
@@ -473,11 +503,11 @@ async def dreamxbotz_fetch_media(limit: int = 20) -> List[dict]:
             for idx, database in enumerate(DBS):
                 size = await check_db_size(database)
                 if size < 407:
-                    model = MODELS[idx]
-                    cursor = model.collection.find().sort("$natural", -1).limit(limit)
+                    collection = COLLECTIONS[idx]
+                    cursor = collection.find().sort("$natural", -1).limit(limit)
                     files = await cursor.to_list(length=limit)
                     return files
-        cursor = MODELS[0].collection.find().sort("$natural", -1).limit(limit)
+        cursor = COLLECTIONS[0].find().sort("$natural", -1).limit(limit)
         files = await cursor.to_list(length=limit)
         return files
     except Exception as e:
@@ -564,9 +594,9 @@ async def dreamxbotz_get_series(limit: int = 30) -> Dict[str, List[int]]:
 async def get_total_file_count() -> int:
     """Count files across all databases."""
     total = 0
-    for model in MODELS:
+    for collection in COLLECTIONS:
         try:
-            total += await model.collection.count_documents({})
+            total += await collection.count_documents({})
         except Exception as e:
             logger.error(f"Count error in DB: {e}")
     return total
@@ -574,9 +604,9 @@ async def get_total_file_count() -> int:
 async def delete_file(file_id: str) -> bool:
     """Delete a file from all databases."""
     deleted = False
-    for model in MODELS:
+    for collection in COLLECTIONS:
         try:
-            result = await model.collection.delete_one({"_id": file_id})
+            result = await collection.delete_one({"_id": file_id})
             if result.deleted_count:
                 deleted = True
         except Exception as e:
@@ -586,9 +616,9 @@ async def delete_file(file_id: str) -> bool:
 async def clear_all_files() -> int:
     """Delete all files from all databases (dangerous)."""
     total = 0
-    for model in MODELS:
+    for collection in COLLECTIONS:
         try:
-            result = await model.collection.delete_many({})
+            result = await collection.delete_many({})
             total += result.deleted_count
         except Exception as e:
             logger.error(f"Clear error: {e}")
