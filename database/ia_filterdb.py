@@ -61,8 +61,13 @@ def _create_model(instance):
         cover = fields.StrField(allow_none=True)
 
         class Meta:
-            indexes = ("$file_name",)
             collection_name = COLLECTION_NAME
+
+        @classmethod
+        async def ensure_indexes(cls):
+            """Create the required index on file_name."""
+            if cls.collection is not None:
+                await cls.collection.create_index([("file_name", 1)])
 
     instance.register(MediaModel)
     return MediaModel
@@ -73,7 +78,6 @@ COLLECTIONS = []
 for db in _all_dbs:
     inst = Instance.from_db(db)
     model = _create_model(inst)
-    # Umongo sets model.collection automatically, but we assign explicitly to be safe
     model.collection = db[COLLECTION_NAME]
     MODELS.append(model)
     COLLECTIONS.append(db[COLLECTION_NAME])
