@@ -45,7 +45,8 @@ _all_uris = []
 def get_db_label(uri: str) -> str:
     try:
         parsed = urlparse(uri)
-        return parsed.hostname or "unknown"
+        host = parsed.hostname or "unknown"
+        return host.split('.')[0].upper()
     except Exception:
         return "unknown"
 
