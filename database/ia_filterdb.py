@@ -326,7 +326,7 @@ def unpack_new_file_id(new_file_id):
     return file_id, file_ref
 
 # ============================================================
-# DREAMXBOTZ FETCH MEDIA (preserved, works across all DBs)
+# DOWNTOWN VILLA FETCH MEDIA (preserved, works across all DBs)
 # ============================================================
 async def dreamxbotz_fetch_media(limit: int) -> List[dict]:
     try:
@@ -342,11 +342,11 @@ async def dreamxbotz_fetch_media(limit: int) -> List[dict]:
         files = await cursor.to_list(length=limit)
         return files
     except Exception as e:
-        logger.error(f"Error in dreamxbotz_fetch_media: {e}")
+        logger.error(f"Error in DOWNTOWN VILLA fetch_media: {e}")
         return []
 
 # ============================================================
-# DREAMXBOTZ CLEAN TITLE (unchanged)
+# DOWNTOWN VILLA CLEAN TITLE (unchanged)
 # ============================================================
 async def dreamxbotz_clean_title(filename: str, is_series: bool = False) -> str:
     try:
@@ -394,11 +394,11 @@ async def dreamxbotz_clean_title(filename: str, is_series: bool = False) -> str:
             .title()
         )
     except Exception as e:
-        logger.error(f"Error in truncate_title: {e}")
+        logger.error(f"Error in DOWNTOWN VILLA clean_title: {e}")
         return filename
 
 # ============================================================
-# DREAMXBOTZ GET MOVIES (unchanged)
+# DOWNTOWN VILLA GET MOVIES (unchanged)
 # ============================================================
 async def dreamxbotz_get_movies(limit: int = 20) -> List[str]:
     try:
@@ -414,11 +414,11 @@ async def dreamxbotz_get_movies(limit: int = 20) -> List[str]:
                 break
         return sorted(list(results))[:limit]
     except Exception as e:
-        logger.error(f"Error in dreamxbotz_get_movies: {e}")
+        logger.error(f"Error in DOWNTOWN VILLA get_movies: {e}")
         return []
 
 # ============================================================
-# DREAMXBOTZ GET SERIES (unchanged)
+# DOWNTOWN VILLA GET SERIES (unchanged)
 # ============================================================
 async def dreamxbotz_get_series(limit: int = 30) -> Dict[str, List[int]]:
     try:
@@ -438,5 +438,5 @@ async def dreamxbotz_get_series(limit: int = 30) -> Dict[str, List[int]]:
             if seasons
         }
     except Exception as e:
-        logger.error(f"Error in dreamxbotz_get_series: {e}")
+        logger.error(f"Error in DOWNTOWN VILLA get_series: {e}")
         return []
