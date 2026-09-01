@@ -71,7 +71,6 @@ def _create_model(instance: Instance) -> type:
                     await cls.collection.create_index([("file_name", 1)])
             except Exception as e:
                 logger.error(f"Index creation failed for {cls.collection.name}: {e}")
-                # Fallback: try text index
                 try:
                     await cls.collection.create_index([("file_name", "text")])
                 except Exception:
@@ -83,43 +82,53 @@ def _create_model(instance: Instance) -> type:
 def _initialize_database_pool():
     """Initialize all database connections from the URIs."""
     global _all_clients, _all_dbs, _all_instances, _all_models
+    global client, client2, client3, db, db2, db3, Media, Media2, Media3
+
+    # Reset lists
+    _all_clients = []
+    _all_dbs = []
+    _all_instances = []
+    _all_models = []
 
     for uri in DATABASE_URIS:
         try:
-            client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)
-            db = client[DATABASE_NAME]
-            instance = Instance.from_db(db)
-            _all_clients.append(client)
-            _all_dbs.append(db)
-            _all_instances.append(instance)
+            client_temp = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)
+            db_temp = client_temp[DATABASE_NAME]
+            instance_temp = Instance.from_db(db_temp)
+            _all_clients.append(client_temp)
+            _all_dbs.append(db_temp)
+            _all_instances.append(instance_temp)
         except Exception as e:
             logger.error(f"Failed to connect to DB at {uri}: {e}")
 
-    # If no DBs available, raise a clear error
     if not _all_dbs:
         raise RuntimeError("No valid MongoDB connection found.")
 
     # Create models for each database
-    for db in _all_dbs:
-        inst = Instance.from_db(db)
-        model = _create_model(inst)
+    for db_temp in _all_dbs:
+        inst_temp = Instance.from_db(db_temp)
+        model = _create_model(inst_temp)
         _all_models.append(model)
+
+    # Backward compatibility aliases
+    client = _all_clients[0]
+    client2 = _all_clients[1] if len(_all_clients) > 1 else client
+    client3 = _all_clients[2] if len(_all_clients) > 2 else client2
+
+    db = _all_dbs[0]
+    db2 = _all_dbs[1] if len(_all_dbs) > 1 else db
+    db3 = _all_dbs[2] if len(_all_dbs) > 2 else db2
+
+    Media = _all_models[0]
+    Media2 = _all_models[1] if len(_all_models) > 1 else Media
+    Media3 = _all_models[2] if len(_all_models) > 2 else Media2
 
 # Initialize on import
 _initialize_database_pool()
 
-# Backward compatibility aliases
-Media = _all_models[0] if _all_models else None
-Media2 = _all_models[1] if len(_all_models) > 1 else Media
-Media3 = _all_models[2] if len(_all_models) > 2 else Media2
-
-db = _all_dbs[0] if _all_dbs else None
-db2 = _all_dbs[1] if len(_all_dbs) > 1 else db
-db3 = _all_dbs[2] if len(_all_dbs) > 2 else db2
-
 DBS = _all_dbs
 MODELS = _all_models
-COLLECTIONS = [db[COLLECTION_NAME] for db in _all_dbs]
+COLLECTIONS = [db_temp[COLLECTION_NAME] for db_temp in _all_dbs]
 
 # ============================================================
 # DATABASE HEALTH & SIZE
@@ -132,7 +141,6 @@ async def check_db_size(database: AsyncIOMotorDatabase) -> float:
             _db_stats_cache["timestamp"] is None
             or (now - _db_stats_cache["timestamp"] > timedelta(minutes=10))
         )
-        # Force refresh if primary size >= 10 MB
         force_refresh = _db_stats_cache["primary_size"] >= 10.0
 
         if not cache_stale and not force_refresh:
@@ -165,7 +173,6 @@ async def save_file(media) -> Tuple[bool, int]:
     """
     Save file to the database.
     Returns: (success, status_code)
-    Status codes:
         0 - duplicate
         1 - success
         2 - validation error
@@ -177,7 +184,6 @@ async def save_file(media) -> Tuple[bool, int]:
         logger.exception(f"Failed to unpack file ID: {e}")
         return False, 3
 
-    # Clean filename
     file_name = re.sub(
         r"[_\-\.#+$%^&*()!~`,;:\"'?/<>\[\]{}=|\\]", " ", str(media.file_name)
     )
@@ -186,7 +192,6 @@ async def save_file(media) -> Tuple[bool, int]:
     if not file_name:
         file_name = "Unknown File"
 
-    # Check duplicates across all databases
     for idx, model in enumerate(MODELS):
         try:
             exists = await model.collection.find_one({"file_id": file_id})
@@ -196,7 +201,6 @@ async def save_file(media) -> Tuple[bool, int]:
         except Exception as e:
             logger.error(f"Duplicate check error in DB{idx+1}: {e}")
 
-    # Choose the smallest database (by size)
     target_index = 0
     if len(DBS) > 1:
         min_size = float("inf")
@@ -237,7 +241,6 @@ async def save_file(media) -> Tuple[bool, int]:
         return False, 0
     except OperationFailure as e:
         logger.exception(f"[DB ERROR] {target_db_name}: {e}")
-        # Retry with next DB
         if target_index + 1 < len(MODELS):
             try:
                 record2 = MODELS[target_index + 1](**record.to_mongo())
@@ -261,11 +264,6 @@ async def get_search_results(
     offset=0,
     filter=False,
 ):
-    """
-    Search across all databases.
-    Returns (files, next_offset, total_results).
-    """
-    # Settings for max_results
     if chat_id is not None and max_results is None:
         settings = await get_settings(int(chat_id))
         if "max_btn" not in settings:
@@ -273,7 +271,6 @@ async def get_search_results(
             settings["max_btn"] = True
         max_results = 10 if settings["max_btn"] else int(MAX_B_TN)
 
-    # Build regex
     if isinstance(query, list):
         raw_pattern = "|".join(re.escape(q.strip()) for q in query if q and q.strip())
         if not raw_pattern:
@@ -304,13 +301,11 @@ async def get_search_results(
     if file_type:
         filter_mongo["file_type"] = file_type
 
-    # Check cache
     cache_key = f"{query}|{file_type}|{max_results}|{offset}|{chat_id}"
     cached = _search_cache.get(cache_key)
     if cached and (time.time() - cached[0] < _SEARCH_CACHE_TTL):
         return cached[1], cached[2], cached[3]
 
-    # Perform search across all DBs
     try:
         if ULTRA_FAST_MODE:
             limit = max_results + 1
@@ -373,7 +368,6 @@ async def get_search_results(
         logger.exception(f"Search failed: {e}")
         return [], "", 0
 
-    # Store in cache
     _search_cache[cache_key] = (time.time(), files, next_offset, total_results)
 
     return files, next_offset, total_results
@@ -386,7 +380,6 @@ async def get_bad_files(query, file_type=None):
     if not query:
         return [], 0
 
-    # Build regex
     if " " not in query:
         raw_pattern = r"(\b|[\.\+\-_])" + re.escape(query) + r"(\b|[\.\+\-_])"
     else:
@@ -403,7 +396,6 @@ async def get_bad_files(query, file_type=None):
     if file_type:
         filter_mongo["file_type"] = file_type
 
-    # Fetch from all DBs
     tasks = [
         model.collection.find(filter_mongo)
         .sort("$natural", -1)
@@ -477,7 +469,6 @@ def unpack_new_file_id(new_file_id):
 async def dreamxbotz_fetch_media(limit: int = 20) -> List[dict]:
     """Fetch recent media from the least full DB."""
     try:
-        # Try to find DB under 407 MB
         if len(DBS) > 1:
             for idx, database in enumerate(DBS):
                 size = await check_db_size(database)
