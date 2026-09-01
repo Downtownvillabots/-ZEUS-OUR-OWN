@@ -127,9 +127,9 @@ def _initialize_database_pool():
     MODELS = _all_models
     COLLECTIONS = [db_temp[COLLECTION_NAME] for db_temp in _all_dbs]
     DB_LABELS = _all_labels
+    USER_DB_LABEL = get_db_label(DATABASE_URI) if DATABASE_URI else "unknown"
 
 _initialize_database_pool()
-
 # ============================================================
 # DB SIZE
 # ============================================================
