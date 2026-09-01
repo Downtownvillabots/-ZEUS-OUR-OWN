@@ -44,6 +44,11 @@ for uri in DATABASE_URIS:
     _all_dbs.append(db)
     _all_instances.append(instance)
 
+# Backward compatibility aliases for clients
+client = _all_clients[0]
+client2 = _all_clients[1] if len(_all_clients) > 1 else client
+client3 = _all_clients[2] if len(_all_clients) > 2 else client2
+
 def _create_model(instance):
     class MediaModel(Document):
         file_id = fields.StrField(attribute="_id")
