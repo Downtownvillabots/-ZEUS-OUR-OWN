@@ -17,9 +17,9 @@ from umongo import Instance, Document, fields, ValidationError
 
 from utils import get_settings, save_group_settings
 from info import (
-    COLLECTION_NAME, COVERX, DATABASE_NAME, USER_DATABASE, DATABASE_URI2, DATABASE_URI3,
+    COLLECTION_NAME, COVERX, DATABASE_NAME, USER_DATABASE,
     INDEX_CAPTION, MAX_B_TN, MULTIPLE_DB, ULTRA_FAST_MODE, USE_CAPTION_FILTER,
-    DATABASE_URIS, MEDIA_DATABASE_URIS
+    MEDIA_DATABASE_URIS
 )
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
