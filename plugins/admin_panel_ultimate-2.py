@@ -895,8 +895,7 @@ async def collect_one_database(database, model, label: str, cluster_label: str =
 
     if database is None:
         return result
-
-        try:
+    try:
         result["database_name"] = getattr(database, "name", "") or ""
         result["label"] = label
         result["cluster"] = cluster_label   # ✅ add this
