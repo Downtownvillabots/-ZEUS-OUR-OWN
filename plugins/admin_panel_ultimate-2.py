@@ -1387,6 +1387,29 @@ async def build_user_database_page():
             f"⚠️ Last Error: <code>{short_text(item.get('last_error'), 220)}</code>\n"
         )
 
+    # Now add a breakdown of all collections (users, groups, premium, media, etc.)
+    try:
+        collection_names = await db.list_collection_names()
+        if collection_names:
+            text += (
+                "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "📚 <b>COLLECTIONS</b>\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            )
+            for col_name in sorted(collection_names):
+                try:
+                    count = await db[col_name].count_documents({})
+                    # Mark the media collection clearly
+                    if col_name == COLLECTION_NAME:
+                        marker = "📼"
+                    else:
+                        marker = "👥"
+                    text += f"{marker} <code>{html_escape(col_name)}</code> : <b>{fmt_number(count)}</b>\n"
+                except Exception:
+                    text += f"• <code>{html_escape(col_name)}</code> : <b>N/A</b>\n"
+    except Exception:
+        pass
+
     return text[:4000]
 
 
