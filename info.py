@@ -83,22 +83,21 @@ STAR_PREMIUM_PLANS = {
 # ============================
 # MongoDB Configuration – Unlimited DB Support
 # ============================
+USER_DATABASE = environ.get('USER_DATABASE', environ.get('DATABASE_URI', ''))   # user DB URI (users/groups/settings)
 DATABASE_NAME = environ.get('DATABASE_NAME', "Cluster0")
 COLLECTION_NAME = environ.get('COLLECTION_NAME', 'downtown_villa_files')
 
-# Collect all MongoDB URIs from DATABASE_URI_1, DATABASE_URI_2, ... and also legacy DATABASE_URI
-# If only DATABASE_URI is set, we use that as the single URI.
-_uri_1 = environ.get('DATABASE_URI', '')
-_uri_2 = environ.get('DATABASE_URI_1', _uri_1)  # legacy aliases
-_uri_3 = environ.get('DATABASE_URI_2', _uri_2)
-_uri_4 = environ.get('DATABASE_URI_3', _uri_3)
-_uri_5 = environ.get('DATABASE_URI_4', _uri_4)
-_uri_6 = environ.get('DATABASE_URI_5', _uri_5)
-# Continue for as many as needed up to 10
-_uri_7 = environ.get('DATABASE_URI_6', _uri_6)
-_uri_8 = environ.get('DATABASE_URI_7', _uri_7)
-_uri_9 = environ.get('DATABASE_URI_8', _uri_8)
-_uri_10 = environ.get('DATABASE_URI_9', _uri_9)
+# Collect all MEDIA database URIs from DATABASE_URI_1, DATABASE_URI_2, ...
+_uri_1 = environ.get('DATABASE_URI_1', '')
+_uri_2 = environ.get('DATABASE_URI_2', '')
+_uri_3 = environ.get('DATABASE_URI_3', '')
+_uri_4 = environ.get('DATABASE_URI_4', '')
+_uri_5 = environ.get('DATABASE_URI_5', '')
+_uri_6 = environ.get('DATABASE_URI_6', '')
+_uri_7 = environ.get('DATABASE_URI_7', '')
+_uri_8 = environ.get('DATABASE_URI_8', '')
+_uri_9 = environ.get('DATABASE_URI_9', '')
+_uri_10 = environ.get('DATABASE_URI_10', '')
 
 _ALL_URIS = [
     _uri_1, _uri_2, _uri_3, _uri_4, _uri_5,
@@ -106,28 +105,26 @@ _ALL_URIS = [
 ]
 
 # Filter out empty or duplicate URIs
-_DB_URIS = []
+MEDIA_DATABASE_URIS = []
 _seen = set()
 for uri in _ALL_URIS:
     if uri and uri not in _seen:
-        _DB_URIS.append(uri)
+        MEDIA_DATABASE_URIS.append(uri)
         _seen.add(uri)
 
-# If none set, we default to a placeholder (will error later)
-if not _DB_URIS:
-    _DB_URIS = ['mongodb://localhost:27017']
+# If no media DBs are set, fall back to the user DB (optional, but better to error if missing)
+if not MEDIA_DATABASE_URIS:
+    if USER_DATABASE:
+        MEDIA_DATABASE_URIS = [USER_DATABASE]   # fallback: use the same DB if no media DB provided
+    else:
+        MEDIA_DATABASE_URIS = ['mongodb://localhost:27017']   # placeholder to avoid crash
 
-# Preserve compatibility: first URI is the primary
-DATABASE_URI = _DB_URIS[0]
+# Determine if multiple media DBs are enabled
+MULTIPLE_DB = len(MEDIA_DATABASE_URIS) > 1 or is_enabled(environ.get('MULTIPLE_DB', "False"), False)
 
-# Determine if multiple DBs are enabled
-MULTIPLE_DB = len(_DB_URIS) > 1 or is_enabled(environ.get('MULTIPLE_DB', "False"), False)
+# For backward compatibility (old code may still import DATABASE_URI) – but we are removing it
+# Do NOT define DATABASE_URI here – remove all references to it in the project.
 
-# Expose the list for the database manager
-DATABASE_URIS = _DB_URIS
-
-# Separate media databases (exclude the first URI used for users/groups)
-MEDIA_DATABASE_URIS = DATABASE_URIS[1:] if len(DATABASE_URIS) > 1 else DATABASE_URIS
 
 # ============================
 # Movie Notification & Update Settings
