@@ -170,13 +170,23 @@ async def save_file(media):
     if not file_name:
         file_name = "Unknown File"
 
+    # Check duplicates
     for idx, model in enumerate(MODELS):
         exists = await model.collection.find_one({"file_id": file_id})
         if exists:
+            logger.info(f"[SKIP] Duplicate: '{file_name}' already in DB{idx+1}")
             return False, 0
 
+    # Choose first DB below threshold (default 407 MB)
     target_index = 0
-    if len(DBS) > 1:
+    threshold = 407
+    for idx, database in enumerate(DBS):
+        size = await check_db_size(database)
+        if size < threshold:
+            target_index = idx
+            break
+    else:
+        # All full → smallest
         min_size = float("inf")
         for idx, database in enumerate(DBS):
             size = await check_db_size(database)
@@ -200,25 +210,32 @@ async def save_file(media):
             cover=cover_to_use if COVERX else None,
         )
     except ValidationError:
+        logger.error(f"[ERROR] Validation failed for '{file_name}'")
         return False, 2
     except Exception:
+        logger.error(f"[ERROR] Could not create record for '{file_name}'")
         return False, 3
 
     try:
         await record.commit()
+        logger.info(f"[SUCCESS] Saved '{file_name}' to {target_db_name}")
         return True, 1
     except DuplicateKeyError:
+        logger.info(f"[SKIP] DuplicateKey: '{file_name}' already in {target_db_name}")
         return False, 0
     except OperationFailure:
+        logger.error(f"[ERROR] DB operation failure in {target_db_name}")
         if target_index + 1 < len(MODELS):
             try:
                 record2 = MODELS[target_index + 1](**record.to_mongo())
                 await record2.commit()
+                logger.info(f"[SUCCESS] Saved '{file_name}' to DB{target_index+2}")
                 return True, 1
             except Exception:
                 pass
         return False, 3
     except Exception:
+        logger.error(f"[ERROR] Commit failed for '{file_name}' to {target_db_name}")
         return False, 3
 
 # ============================================================
