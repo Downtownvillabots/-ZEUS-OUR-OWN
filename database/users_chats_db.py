@@ -3,14 +3,13 @@ import logging
 import pytz  
 import motor.motor_asyncio
 from info import (
-    DATABASE_NAME,USER_DATABASE,DATABASE_URI2, MULTIPLE_DB, MAINTENANCE, PM_SEARCH,
+    DATABASE_NAME, USER_DATABASE, MAINTENANCE, PM_SEARCH,
     BUTTON_MODE, P_TTI_SHOW_OFF, PROTECT_CONTENT, IMDB, SPELL_CHECK_REPLY, MELCOW_NEW_USERS, 
     AUTO_DELETE, AUTO_FFILTER, MAX_BTN, IMDB_TEMPLATE, LOG_VR_CHANNEL, TUTORIAL, TUTORIAL_2,
     TUTORIAL_3, SHORTENER_API, SHORTENER_API2, SHORTENER_API3, SHORTENER_WEBSITE, SHORTENER_WEBSITE2,
     SHORTENER_WEBSITE3, IS_VERIFY, TWO_VERIFY_GAP, THREE_VERIFY_GAP, CUSTOM_FILE_CAPTION, AUTH_CHANNELS,
     MOVIE_UPDATE_NOTIFICATION
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -448,10 +447,6 @@ class Database:
     async def update_maintenance_status(self, bot_id, enable):
         await self.update_bot_setting(bot_id, 'MAINTENANCE', enable)
      
-db = Database(USER_DATABASE, DATABASE_NAME)    
-if MULTIPLE_DB and DATABASE_URI2:
-    db2 = Database(DATABASE_URI2, DATABASE_NAME)
-else:
-    db2 = db
-
+db = Database(USER_DATABASE, DATABASE_NAME)
+db2 = db   # only one user database (no need for a second)
 
