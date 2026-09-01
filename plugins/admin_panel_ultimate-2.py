@@ -1331,6 +1331,45 @@ async def build_database_page():
 
     return text[:4000]
 
+async def build_user_database_page():
+    if db is None:
+        return "👥 <b>USER DATABASE</b>\n\n🔴 No primary database available."
+
+    try:
+        db_stats = await db.command("dbStats")
+        total_size = safe_int(db_stats.get("dataSize")) + safe_int(db_stats.get("indexSize"))
+        collections_count = safe_int(db_stats.get("collections"))
+        indexes_count = safe_int(db_stats.get("indexes"))
+
+        text = (
+            "👥 <b>USER DATABASE</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"🏷️ Cluster: <code>{html_escape(getattr(db, 'name', 'N/A'))}</code>\n"
+            f"💾 Storage: <b>{fmt_bytes(total_size)}</b>\n"
+            f"📄 Data: <b>{fmt_bytes(safe_int(db_stats.get('dataSize')))}</b>\n"
+            f"🧩 Indexes: <b>{fmt_bytes(safe_int(db_stats.get('indexSize')))}</b>\n"
+            f"🗂️ Collections: <b>{fmt_number(collections_count)}</b>\n"
+            f"🔢 Indexes Count: <b>{fmt_number(indexes_count)}</b>\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "📚 <b>COLLECTIONS</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        )
+
+        collection_names = await db.list_collection_names()
+        for col_name in sorted(collection_names):
+            try:
+                col = db[col_name]
+                count = await col.count_documents({})
+                text += f"• <code>{html_escape(col_name)}</code> : <b>{fmt_number(count)}</b>\n"
+            except Exception:
+                text += f"• <code>{html_escape(col_name)}</code> : <b>N/A</b>\n"
+
+    except Exception as exc:
+        LOGGER.exception("Error building user database page: %s", exc)
+        return "👥 <b>USER DATABASE</b>\n\n⚠️ Failed to fetch details."
+
+    return text[:4000]
+
 
 async def build_mongo_page():
     databases = await refresh_db_cache()
@@ -1706,6 +1745,7 @@ def dashboard_keyboard():
             InlineKeyboardButton("📡 TELEGRAM", callback_data="admin_telegram"),
         ],
         [
+            InlineKeyboardButton("👥 USER DB", callback_data="admin_userdb"),
             InlineKeyboardButton("❌ CLOSE", callback_data="admin_close"),
         ],
     ])
@@ -1773,6 +1813,9 @@ async def build_page(client, page: str):
 
     if page == "db":
         return await build_database_page()
+
+    if page == "userdb":
+        return await build_user_database_page()
 
     if page == "mongo":
         return await build_mongo_page()
@@ -1944,6 +1987,7 @@ CALLBACK_PAGES = {
     "admin_dashboard": "dashboard",
     "admin_refresh": "dashboard",
     "admin_db": "db",
+    "admin_userdb": "userdb",
     "admin_mongo": "mongo",
     "admin_server": "server",
     "admin_tasks": "tasks",
