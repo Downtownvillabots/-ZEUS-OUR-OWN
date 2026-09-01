@@ -15,59 +15,42 @@ from pymongo.errors import DuplicateKeyError, PyMongoError, ConnectionFailure, O
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 from umongo import Instance, Document, fields, ValidationError
 
-# Import project settings
 from utils import get_settings, save_group_settings
 from info import (
     COLLECTION_NAME, COVERX, DATABASE_NAME, DATABASE_URI, DATABASE_URI2, DATABASE_URI3,
     INDEX_CAPTION, MAX_B_TN, MULTIPLE_DB, ULTRA_FAST_MODE, USE_CAPTION_FILTER,
-    DATABASE_URIS  # dynamic list of all URIs
+    DATABASE_URIS
 )
 
-# ============================================================
-# LOGGING & CACHE CONFIGURATION
-# ============================================================
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 _db_stats_cache = {"timestamp": None, "primary_size": 0.0}
+_search_cache = {}
+_SEARCH_CACHE_TTL = 60
 
-# Search result cache (future optimization)
-_search_cache: Dict[str, Tuple[float, list, int]] = {}
-_SEARCH_CACHE_TTL = 60  # seconds
-
-# ============================================================
-# HELPER: REGEX CACHE
-# ============================================================
 @lru_cache(maxsize=4096)
 def compile_regex(pattern: str) -> re.Pattern:
     return re.compile(pattern, re.IGNORECASE)
 
 # ============================================================
-# HELPER: EXTRACT CLUSTER LABEL FROM URI
+# DYNAMIC DATABASE POOL
 # ============================================================
+_all_clients = []
+_all_dbs = []
+_all_instances = []
+_all_models = []
+_all_labels = []
+_all_uris = []
+
 def get_db_label(uri: str) -> str:
-    """Extract a human-readable label from the MongoDB URI."""
     try:
         parsed = urlparse(uri)
-        host = parsed.hostname or "unknown"
-        # For Atlas URIs, host is like cluster0.mongodb.net
-        # We can return the host directly
-        return host
+        return parsed.hostname or "unknown"
     except Exception:
         return "unknown"
 
-# ============================================================
-# DYNAMIC DATABASE POOL (UNLIMITED SUPPORT)
-# ============================================================
-_all_clients: List[AsyncIOMotorClient] = []
-_all_dbs: List[AsyncIOMotorDatabase] = []
-_all_instances: List[Instance] = []
-_all_models: List[type] = []
-_all_labels: List[str] = []          # human-readable labels for admin panel
-_all_uris: List[str] = []
-
 def _create_model(instance: Instance) -> type:
-    """Create and register a Media model with the given umongo instance."""
     class MediaModel(Document):
         file_id = fields.StrField(attribute="_id")
         file_ref = fields.StrField(allow_none=True)
@@ -83,28 +66,24 @@ def _create_model(instance: Instance) -> type:
 
         @classmethod
         async def ensure_indexes(cls):
-            """Create the required index on file_name."""
             try:
                 if cls.collection is not None:
                     await cls.collection.create_index([("file_name", 1)])
             except Exception as e:
-                logger.error(f"Index creation failed for {cls.collection.name}: {e}")
+                logger.error(f"Index creation failed: {e}")
                 try:
                     await cls.collection.create_index([("file_name", "text")])
                 except Exception:
                     pass
 
-    # `instance.register` returns the registered model (not the template)
     return instance.register(MediaModel)
 
 def _initialize_database_pool():
-    """Initialize all database connections from the URIs."""
     global _all_clients, _all_dbs, _all_instances, _all_models
     global _all_labels, _all_uris
     global client, client2, client3, db, db2, db3, Media, Media2, Media3
     global DBS, MODELS, COLLECTIONS, DB_LABELS
 
-    # Reset lists
     _all_clients = []
     _all_dbs = []
     _all_instances = []
@@ -128,13 +107,11 @@ def _initialize_database_pool():
     if not _all_dbs:
         raise RuntimeError("No valid MongoDB connection found.")
 
-    # Create models for each database
     for db_temp in _all_dbs:
         inst_temp = Instance.from_db(db_temp)
         model = _create_model(inst_temp)
         _all_models.append(model)
 
-    # Backward compatibility aliases
     client = _all_clients[0]
     client2 = _all_clients[1] if len(_all_clients) > 1 else client
     client3 = _all_clients[2] if len(_all_clients) > 2 else client2
@@ -147,21 +124,17 @@ def _initialize_database_pool():
     Media2 = _all_models[1] if len(_all_models) > 1 else Media
     Media3 = _all_models[2] if len(_all_models) > 2 else Media2
 
-    # Expose lists
     DBS = _all_dbs
     MODELS = _all_models
     COLLECTIONS = [db_temp[COLLECTION_NAME] for db_temp in _all_dbs]
     DB_LABELS = _all_labels
-    DB_URIS = _all_uris
 
-# Initialize on import
 _initialize_database_pool()
 
 # ============================================================
-# DATABASE HEALTH & SIZE
+# DB SIZE
 # ============================================================
-async def check_db_size(database: AsyncIOMotorDatabase) -> float:
-    """Return the database size in MB with caching."""
+async def check_db_size(database):
     try:
         now = datetime.utcnow()
         cache_stale = (
@@ -169,67 +142,37 @@ async def check_db_size(database: AsyncIOMotorDatabase) -> float:
             or (now - _db_stats_cache["timestamp"] > timedelta(minutes=10))
         )
         force_refresh = _db_stats_cache["primary_size"] >= 10.0
-
         if not cache_stale and not force_refresh:
             return _db_stats_cache["primary_size"]
-
         stats = await database.command("dbstats")
         size_mb = (stats["dataSize"] + stats["indexSize"]) / (1024 * 1024)
         _db_stats_cache["primary_size"] = size_mb
         _db_stats_cache["timestamp"] = now
         return size_mb
-    except Exception as e:
-        logger.exception(f"Error checking DB size: {e}")
+    except Exception:
         return 0
 
-async def ping_databases() -> List[Tuple[int, bool]]:
-    """Check health of all databases."""
-    results = []
-    for idx, database in enumerate(DBS):
-        try:
-            await database.command("ping")
-            results.append((idx, True))
-        except Exception:
-            results.append((idx, False))
-    return results
-
 # ============================================================
-# SAVE FILE (with full error handling)
+# SAVE FILE
 # ============================================================
-async def save_file(media) -> Tuple[bool, int]:
-    """
-    Save file to the database.
-    Returns: (success, status_code)
-        0 - duplicate
-        1 - success
-        2 - validation error
-        3 - other error
-    """
+async def save_file(media):
     try:
         file_id, file_ref = unpack_new_file_id(media.file_id)
-    except Exception as e:
-        logger.exception(f"Failed to unpack file ID: {e}")
+    except Exception:
         return False, 3
 
     file_name = re.sub(
         r"[_\-\.#+$%^&*()!~`,;:\"'?/<>\[\]{}=|\\]", " ", str(media.file_name)
     )
     file_name = re.sub(r"\s+", " ", file_name).strip()
-
     if not file_name:
         file_name = "Unknown File"
 
-    # Check duplicates across ALL databases using COLLECTIONS
-    for idx, collection in enumerate(COLLECTIONS):
-        try:
-            exists = await collection.find_one({"file_id": file_id})
-            if exists:
-                logger.info(f"[SKIP] '{file_name}' already in DB{idx+1} ({DB_LABELS[idx]}).")
-                return False, 0
-        except Exception as e:
-            logger.error(f"Duplicate check error in DB{idx+1}: {e}")
+    for idx, model in enumerate(MODELS):
+        exists = await model.collection.find_one({"file_id": file_id})
+        if exists:
+            return False, 0
 
-    # Choose the smallest database (by size)
     target_index = 0
     if len(DBS) > 1:
         min_size = float("inf")
@@ -240,7 +183,6 @@ async def save_file(media) -> Tuple[bool, int]:
                 target_index = idx
 
     target_model = MODELS[target_index]
-    target_collection = COLLECTIONS[target_index]
     target_db_name = f"DB{target_index+1} ({DB_LABELS[target_index]})"
 
     try:
@@ -255,23 +197,17 @@ async def save_file(media) -> Tuple[bool, int]:
             caption=(media.caption.html if media.caption and INDEX_CAPTION else None),
             cover=cover_to_use if COVERX else None,
         )
-    except ValidationError as e:
-        logger.exception(f"[VALIDATION ERROR] '{file_name}': {e}")
+    except ValidationError:
         return False, 2
-    except Exception as e:
-        logger.exception(f"[ERROR] '{file_name}' - {e}")
+    except Exception:
         return False, 3
 
     try:
         await record.commit()
-        logger.info(f"[SUCCESS] '{file_name}' saved to {target_db_name}.")
         return True, 1
     except DuplicateKeyError:
-        logger.info(f"[SKIP] DuplicateKey: '{file_name}' already exists in {target_db_name}.")
         return False, 0
-    except OperationFailure as e:
-        logger.exception(f"[DB ERROR] {target_db_name}: {e}")
-        # Retry with next DB
+    except OperationFailure:
         if target_index + 1 < len(MODELS):
             try:
                 record2 = MODELS[target_index + 1](**record.to_mongo())
@@ -280,21 +216,13 @@ async def save_file(media) -> Tuple[bool, int]:
             except Exception:
                 pass
         return False, 3
-    except Exception as e:
-        logger.exception(f"[ERROR] Failed commit of '{file_name}' to {target_db_name}: {e}")
+    except Exception:
         return False, 3
 
 # ============================================================
-# GET SEARCH RESULTS (using COLLECTIONS list directly)
+# SEARCH RESULTS (using MODELS[i].find for umongo docs)
 # ============================================================
-async def get_search_results(
-    chat_id,
-    query,
-    file_type=None,
-    max_results=None,
-    offset=0,
-    filter=False,
-):
+async def get_search_results(chat_id, query, file_type=None, max_results=None, offset=0, filter=False):
     if chat_id is not None and max_results is None:
         settings = await get_settings(int(chat_id))
         if "max_btn" not in settings:
@@ -307,27 +235,21 @@ async def get_search_results(
         if not raw_pattern:
             return [], None, 0
         regex = compile_regex(raw_pattern)
-        if USE_CAPTION_FILTER:
-            filter_mongo = {"$or": [{"file_name": regex}, {"caption": regex}]}
-        else:
-            filter_mongo = {"file_name": regex}
+        filter_mongo = {"$or": [{"file_name": regex}, {"caption": regex}]} if USE_CAPTION_FILTER else {"file_name": regex}
     else:
         query = query.strip()
         if not query:
             return [], None, 0
         if " " in query:
             words = [re.escape(w) for w in query.split() if w]
-            raw_pattern = (r".*[\s\.\+\-_]".join(words) if words else r".")
+            raw_pattern = r".*[\s\.\+\-_]".join(words) if words else r"."
         else:
-            raw_pattern = (r"(\b|[\.\+\-_])" + re.escape(query) + r"(\b|[\.\+\-_])")
+            raw_pattern = r"(\b|[\.\+\-_])" + re.escape(query) + r"(\b|[\.\+\-_])"
         try:
             regex = compile_regex(raw_pattern)
         except re.error:
             return [], None, 0
-        if USE_CAPTION_FILTER:
-            filter_mongo = {"$or": [{"file_name": regex}, {"caption": regex}]}
-        else:
-            filter_mongo = {"file_name": regex}
+        filter_mongo = {"$or": [{"file_name": regex}, {"caption": regex}]} if USE_CAPTION_FILTER else {"file_name": regex}
 
     if file_type:
         filter_mongo["file_type"] = file_type
@@ -342,11 +264,11 @@ async def get_search_results(
             limit = max_results + 1
             fetch_limit = offset + limit
             tasks = [
-                collection.find(filter_mongo)
+                MODELS[idx].find(filter_mongo)
                 .sort("$natural", -1)
                 .limit(fetch_limit)
                 .to_list(length=fetch_limit)
-                for collection in COLLECTIONS
+                for idx in range(len(MODELS))
             ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
             files = []
@@ -363,16 +285,13 @@ async def get_search_results(
             total_results = offset + len(files) + (1 if has_next else 0)
         else:
             fetch_limit = offset + max_results
-            count_tasks = [
-                collection.count_documents(filter_mongo)
-                for collection in COLLECTIONS
-            ]
+            count_tasks = [COLLECTIONS[idx].count_documents(filter_mongo) for idx in range(len(MODELS))]
             find_tasks = [
-                collection.find(filter_mongo)
+                MODELS[idx].find(filter_mongo)
                 .sort("$natural", -1)
                 .limit(fetch_limit)
                 .to_list(length=fetch_limit)
-                for collection in COLLECTIONS
+                for idx in range(len(MODELS))
             ]
             count_results, find_results = await asyncio.gather(
                 asyncio.gather(*count_tasks, return_exceptions=True),
@@ -384,7 +303,6 @@ async def get_search_results(
                     logger.error(f"Count error: {cr}")
                 else:
                     total_results += cr
-
             files = []
             for fr in find_results:
                 if isinstance(fr, Exception):
@@ -400,17 +318,15 @@ async def get_search_results(
         return [], "", 0
 
     _search_cache[cache_key] = (time.time(), files, next_offset, total_results)
-
     return files, next_offset, total_results
 
 # ============================================================
-# GET BAD FILES (for deletefiles command)
+# BAD FILES (using MODELS[i].find)
 # ============================================================
 async def get_bad_files(query, file_type=None):
     query = query.strip()
     if not query:
         return [], 0
-
     if " " not in query:
         raw_pattern = r"(\b|[\.\+\-_])" + re.escape(query) + r"(\b|[\.\+\-_])"
     else:
@@ -419,50 +335,41 @@ async def get_bad_files(query, file_type=None):
         regex = compile_regex(raw_pattern)
     except re.error:
         return [], 0
-
-    if USE_CAPTION_FILTER:
-        filter_mongo = {"$or": [{"file_name": regex}, {"caption": regex}]}
-    else:
-        filter_mongo = {"file_name": regex}
+    filter_mongo = {"$or": [{"file_name": regex}, {"caption": regex}]} if USE_CAPTION_FILTER else {"file_name": regex}
     if file_type:
         filter_mongo["file_type"] = file_type
 
     tasks = [
-        collection.find(filter_mongo)
-        .sort("$natural", -1)
-        .to_list(300)
-        for collection in COLLECTIONS
+        MODELS[idx].find(filter_mongo).sort("$natural", -1).to_list(300)
+        for idx in range(len(MODELS))
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     files = []
     for res in results:
         if isinstance(res, Exception):
-            logger.error(f"Bad files error: {res}")
             continue
         files.extend(res)
-    files = files[:300]
-    return files, len(files)
+    return files[:300], len(files[:300])
 
 # ============================================================
-# GET FILE DETAILS (with fallback across DBs)
+# FILE DETAILS (using MODELS[i].find)
 # ============================================================
 async def get_file_details(query):
     filter = {"file_id": query}
     tasks = [
-        collection.find(filter).to_list(length=1)
-        for collection in COLLECTIONS
+        MODELS[idx].find(filter).to_list(length=1)
+        for idx in range(len(MODELS))
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     for res in results:
         if isinstance(res, Exception):
-            logger.error(f"File details error: {res}")
             continue
         if res:
             return res
     return []
 
 # ============================================================
-# FILE ID ENCODING / DECODING (unchanged)
+# ENCODE/DECODE
 # ============================================================
 def encode_file_id(s: bytes) -> str:
     r = b""
@@ -482,76 +389,46 @@ def encode_file_ref(file_ref: bytes) -> str:
 
 def unpack_new_file_id(new_file_id):
     decoded = FileId.decode(new_file_id)
-    file_id = encode_file_id(
-        pack(
-            "<iiqq",
-            int(decoded.file_type),
-            decoded.dc_id,
-            decoded.media_id,
-            decoded.access_hash,
-        )
-    )
+    file_id = encode_file_id(pack("<iiqq", int(decoded.file_type), decoded.dc_id, decoded.media_id, decoded.access_hash))
     file_ref = encode_file_ref(decoded.file_reference)
     return file_id, file_ref
 
 # ============================================================
-# DOWNTOWN VILLA MEDIA HELPERS
+# MEDIA HELPERS (using MODELS[idx].find)
 # ============================================================
-async def dreamxbotz_fetch_media(limit: int = 20) -> List[dict]:
-    """Fetch recent media from the least full DB."""
+async def dreamxbotz_fetch_media(limit: int = 20):
     try:
         if len(DBS) > 1:
             for idx, database in enumerate(DBS):
                 size = await check_db_size(database)
                 if size < 407:
-                    collection = COLLECTIONS[idx]
-                    cursor = collection.find().sort("$natural", -1).limit(limit)
-                    files = await cursor.to_list(length=limit)
-                    return files
-        cursor = COLLECTIONS[0].find().sort("$natural", -1).limit(limit)
-        files = await cursor.to_list(length=limit)
-        return files
+                    cursor = MODELS[idx].find().sort("$natural", -1).limit(limit)
+                    return await cursor.to_list(length=limit)
+        cursor = MODELS[0].find().sort("$natural", -1).limit(limit)
+        return await cursor.to_list(length=limit)
     except Exception as e:
         logger.error(f"Error in fetch_media: {e}")
         return []
 
 async def dreamxbotz_clean_title(filename: str, is_series: bool = False) -> str:
-    """Clean filename for display."""
+    # Same as before
     try:
         year_match = re.search(r"^(.*?(\d{4}|\(\d{4}\)))", filename, re.IGNORECASE)
         if year_match:
             title = year_match.group(1).replace("(", "").replace(")", "")
-            return re.sub(
-                r"(?:@[^ \n\r\t.,:;!?()\[\]{}<>\\\/\"'=_%]+|[._\-\[\]@()]+)",
-                " ",
-                title,
-            ).strip().title()
+            return re.sub(r"(?:@[^ \n\r\t.,:;!?()\[\]{}<>\\\/\"'=_%]+|[._\-\[\]@()]+)", " ", title).strip().title()
         if is_series:
-            season_match = re.search(
-                r"(.*?)(?:S(\d{1,2})|Season\s*(\d+)|Season(\d+))(?:\s*Combined)?",
-                filename,
-                re.IGNORECASE,
-            )
+            season_match = re.search(r"(.*?)(?:S(\d{1,2})|Season\s*(\d+)|Season(\d+))(?:\s*Combined)?", filename, re.IGNORECASE)
             if season_match:
                 title = season_match.group(1).strip()
                 season = season_match.group(2) or season_match.group(3) or season_match.group(4)
-                title = re.sub(
-                    r"(?:@[^ \n\r\t.,:;!?()\[\]{}<>\\\/\"'=_%]+|[._\-\[\]@()]+)",
-                    " ",
-                    title,
-                ).strip().title()
+                title = re.sub(r"(?:@[^ \n\r\t.,:;!?()\[\]{}<>\\\/\"'=_%]+|[._\-\[\]@()]+)", " ", title).strip().title()
                 return f"{title} S{int(season):02}"
-        title = filename
-        return re.sub(
-            r"(?:@[^ \n\r\t.,:;!?()\[\]{}<>\\\/\"'=_%]+|[._\-\[\]@()]+)",
-            " ",
-            title,
-        ).strip().title()
+        return re.sub(r"(?:@[^ \n\r\t.,:;!?()\[\]{}<>\\\/\"'=_%]+|[._\-\[\]@()]+)", " ", filename).strip().title()
     except Exception as e:
-        logger.error(f"Error in clean_title: {e}")
         return filename
 
-async def dreamxbotz_get_movies(limit: int = 20) -> List[str]:
+async def dreamxbotz_get_movies(limit: int = 20):
     try:
         cursor = await dreamxbotz_fetch_media(limit * 2)
         results = set()
@@ -565,10 +442,9 @@ async def dreamxbotz_get_movies(limit: int = 20) -> List[str]:
                 break
         return sorted(list(results))[:limit]
     except Exception as e:
-        logger.error(f"Error in get_movies: {e}")
         return []
 
-async def dreamxbotz_get_series(limit: int = 30) -> Dict[str, List[int]]:
+async def dreamxbotz_get_series(limit: int = 30):
     try:
         cursor = await dreamxbotz_fetch_media(limit * 5)
         grouped = defaultdict(list)
@@ -580,51 +456,43 @@ async def dreamxbotz_get_series(limit: int = 30) -> Dict[str, List[int]]:
                 title = await dreamxbotz_clean_title(match.group(1), is_series=True)
                 season = int(match.group(2) or match.group(3) or match.group(4))
                 grouped[title].append(season)
-        return {
-            title: sorted(set(seasons))[:10]
-            for title, seasons in grouped.items()
-            if seasons
-        }
+        return {title: sorted(set(seasons))[:10] for title, seasons in grouped.items() if seasons}
     except Exception as e:
-        logger.error(f"Error in get_series: {e}")
         return []
 
 # ============================================================
-# FUTURE-PROOF: ADDITIONAL UTILITIES
+# EXTRA UTILITIES
 # ============================================================
 async def get_total_file_count() -> int:
-    """Count files across all databases."""
     total = 0
-    for collection in COLLECTIONS:
+    for col in COLLECTIONS:
         try:
-            total += await collection.count_documents({})
-        except Exception as e:
-            logger.error(f"Count error in DB: {e}")
+            total += await col.count_documents({})
+        except Exception:
+            pass
     return total
 
 async def delete_file(file_id: str) -> bool:
-    """Delete a file from all databases."""
     deleted = False
-    for collection in COLLECTIONS:
+    for col in COLLECTIONS:
         try:
-            result = await collection.delete_one({"_id": file_id})
+            result = await col.delete_one({"_id": file_id})
             if result.deleted_count:
                 deleted = True
-        except Exception as e:
-            logger.error(f"Delete error: {e}")
+        except Exception:
+            pass
     return deleted
 
 async def clear_all_files() -> int:
-    """Delete all files from all databases (dangerous)."""
     total = 0
-    for collection in COLLECTIONS:
+    for col in COLLECTIONS:
         try:
-            result = await collection.delete_many({})
+            result = await col.delete_many({})
             total += result.deleted_count
-        except Exception as e:
-            logger.error(f"Clear error: {e}")
+        except Exception:
+            pass
     return total
 
 # ============================================================
-# End of ia_filterdb.py
+# END
 # ============================================================
