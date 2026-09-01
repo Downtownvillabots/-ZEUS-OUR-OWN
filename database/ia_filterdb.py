@@ -12,7 +12,7 @@ from utils import get_settings, save_group_settings
 from info import (
     COLLECTION_NAME, COVERX, DATABASE_NAME, DATABASE_URI, DATABASE_URI2, DATABASE_URI3,
     INDEX_CAPTION, MAX_B_TN, MULTIPLE_DB, ULTRA_FAST_MODE, USE_CAPTION_FILTER,
-    DATABASE_URIS  # <-- list of all URIs
+    DATABASE_URIS
 )
 from datetime import datetime, timedelta
 import asyncio
@@ -64,6 +64,11 @@ def _create_model(instance):
             indexes = ("$file_name",)
             collection_name = COLLECTION_NAME
 
+        @classmethod
+        async def ensure_indexes(cls):
+            """Create the $file_name index if it doesn't exist."""
+            await cls.collection.create_index("$file_name")
+
     instance.register(MediaModel)
     return MediaModel
 
@@ -73,7 +78,6 @@ COLLECTIONS = []
 for db in _all_dbs:
     inst = Instance.from_db(db)
     model = _create_model(inst)
-    # Explicitly set collection attribute on the model class
     model.collection = db[COLLECTION_NAME]
     MODELS.append(model)
     COLLECTIONS.append(db[COLLECTION_NAME])
@@ -86,7 +90,6 @@ db = _all_dbs[0]
 db2 = _all_dbs[1] if len(_all_dbs) > 1 else db
 db3 = _all_dbs[2] if len(_all_dbs) > 2 else db2
 
-# Expose as lists for admin panel, etc.
 DBS = _all_dbs
 
 # ============================================================
