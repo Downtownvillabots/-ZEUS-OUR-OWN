@@ -1,8 +1,4 @@
-Here is the **complete README.md** file with **DOWNTOWN VILLA** branding. Copy and paste the entire content below into your `README.md` file.
 
----
-
-```markdown
 <h1 align="center">DOWNTOWN VILLA BOT</h1>
 
 <p align="center">
