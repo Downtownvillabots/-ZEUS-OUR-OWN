@@ -1,3 +1,4 @@
+import time
 import logging
 import asyncio
 import re
@@ -101,7 +102,7 @@ def _initialize_database_pool():
     global _all_clients, _all_dbs, _all_instances, _all_models
     global _all_labels, _all_uris
     global client, client2, client3, db, db2, db3, Media, Media2, Media3
-    global DBS, MODELS, COLLECTIONS
+    global DBS, MODELS, COLLECTIONS, DB_LABELS
 
     # Reset lists
     _all_clients = []
