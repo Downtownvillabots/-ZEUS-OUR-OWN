@@ -130,7 +130,7 @@ async def save_file(media):
 
     # Check duplicates across ALL databases
     for idx, model in enumerate(MODELS):
-        exists = await model.find_one({"file_id": file_id})
+        exists = await model.collection.find_one({"file_id": file_id})
         if exists:
             logger.info(f"[SKIP] '{file_name}' already in DB{idx+1}.")
             return False, 0
@@ -221,7 +221,7 @@ async def get_search_results(chat_id, query, file_type=None, max_results=None, o
     if ULTRA_FAST_MODE:
         limit = max_results + 1
         fetch_limit = offset + limit
-        tasks = [model.find(filter_mongo).sort("$natural", -1).limit(fetch_limit).to_list(length=fetch_limit) for model in MODELS]
+        tasks = [model.collection.find(filter_mongo).sort("$natural", -1).limit(fetch_limit).to_list(length=fetch_limit) for model in MODELS]
         results = await asyncio.gather(*tasks)
         files = []
         for res in results:
@@ -234,8 +234,8 @@ async def get_search_results(chat_id, query, file_type=None, max_results=None, o
         total_results = offset + len(files) + (1 if has_next_page else 0)
     else:
         fetch_limit = offset + max_results
-        count_tasks = [model.count_documents(filter_mongo) for model in MODELS]
-        find_tasks = [model.find(filter_mongo).sort("$natural", -1).limit(fetch_limit).to_list(length=fetch_limit) for model in MODELS]
+        count_tasks = [model.collection.count_documents(filter_mongo) for model in MODELS]
+        find_tasks = [model.collection.find(filter_mongo).sort("$natural", -1).limit(fetch_limit).to_list(length=fetch_limit) for model in MODELS]
         count_results, find_results = await asyncio.gather(
             asyncio.gather(*count_tasks),
             asyncio.gather(*find_tasks)
@@ -272,7 +272,7 @@ async def get_bad_files(query, file_type=None):
     if file_type:
         filter_mongo["file_type"] = file_type
 
-    tasks = [model.find(filter_mongo).sort("$natural", -1).to_list(300) for model in MODELS]
+    tasks = [model.collection.find(filter_mongo).sort("$natural", -1).to_list(300) for model in MODELS]
     results = await asyncio.gather(*tasks)
     files = []
     for res in results:
@@ -285,7 +285,7 @@ async def get_bad_files(query, file_type=None):
 # ============================================================
 async def get_file_details(query):
     filter = {"file_id": query}
-    tasks = [model.find(filter).to_list(length=1) for model in MODELS]
+    tasks = [model.collection.find(filter).to_list(length=1) for model in MODELS]
     results = await asyncio.gather(*tasks)
     for filedetails in results:
         if filedetails:
@@ -335,10 +335,10 @@ async def dreamxbotz_fetch_media(limit: int) -> List[dict]:
                 size = await check_db_size(d)
                 if size < 407:
                     model = MODELS[idx]
-                    cursor = model.find().sort("$natural", -1).limit(limit)
+                    cursor = model.collection.find().sort("$natural", -1).limit(limit)
                     files = await cursor.to_list(length=limit)
                     return files
-        cursor = MODELS[0].find().sort("$natural", -1).limit(limit)
+        cursor = MODELS[0].collection.find().sort("$natural", -1).limit(limit)
         files = await cursor.to_list(length=limit)
         return files
     except Exception as e:
