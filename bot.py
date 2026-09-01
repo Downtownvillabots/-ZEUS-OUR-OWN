@@ -47,7 +47,7 @@ def get_plugins_names(plugins_dir="plugins"):
     ]
 
 async def dreamxbotz_start():
-    logging.info('\n\nInitializing DreamxBotz')
+    logging.info('\n\nInitializing DOWNTOWN VILLA BOT')
     await dreamxbotz.start()
     bot_info = await dreamxbotz.get_me()
     dreamxbotz.username = bot_info.username
@@ -79,7 +79,7 @@ async def dreamxbotz_start():
     dreamxbotz.username = '@' + me.username
     dreamxbotz.loop.create_task(check_expired_premium(dreamxbotz))
     
-    logging.info(f"{me.first_name} with Pyrogram v{__version__} (Layer {layer}) started on {me.username}.")
+    logging.info(f"DOWNTOWN VILLA BOT — {me.first_name} with Pyrogram v{__version__} (Layer {layer}) started on {me.username}.")
     logging.info(LOG_STR)
     logging.info(script.LOGO)
     tz = pytz.timezone('Asia/Kolkata')
