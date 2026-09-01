@@ -69,8 +69,8 @@ def _create_model(instance):
             if cls.collection is not None:
                 await cls.collection.create_index([("file_name", 1)])
 
-    instance.register(MediaModel)
-    return MediaModel
+    # IMPORTANT: `instance.register` returns the registered model, not the template.
+    return instance.register(MediaModel)
 
 # Create models and assign collection attribute
 MODELS = []
@@ -78,7 +78,7 @@ COLLECTIONS = []
 for db in _all_dbs:
     inst = Instance.from_db(db)
     model = _create_model(inst)
-    model.collection = db[COLLECTION_NAME]
+    model.collection = db[COLLECTION_NAME]  # Set collection explicitly on the registered model
     MODELS.append(model)
     COLLECTIONS.append(db[COLLECTION_NAME])
 
