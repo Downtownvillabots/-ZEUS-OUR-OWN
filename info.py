@@ -126,6 +126,9 @@ MULTIPLE_DB = len(_DB_URIS) > 1 or is_enabled(environ.get('MULTIPLE_DB', "False"
 # Expose the list for the database manager
 DATABASE_URIS = _DB_URIS
 
+# Separate media databases (exclude the first URI used for users/groups)
+MEDIA_DATABASE_URIS = DATABASE_URIS[1:] if len(DATABASE_URIS) > 1 else DATABASE_URIS
+
 # ============================
 # Movie Notification & Update Settings
 # ============================
