@@ -17,7 +17,7 @@ from umongo import Instance, Document, fields, ValidationError
 
 from utils import get_settings, save_group_settings
 from info import (
-    COLLECTION_NAME, COVERX, DATABASE_NAME, DATABASE_URI, DATABASE_URI2, DATABASE_URI3,
+    COLLECTION_NAME, COVERX, DATABASE_NAME, USER_DATABASE, DATABASE_URI2, DATABASE_URI3,
     INDEX_CAPTION, MAX_B_TN, MULTIPLE_DB, ULTRA_FAST_MODE, USE_CAPTION_FILTER,
     DATABASE_URIS, MEDIA_DATABASE_URIS
 )
@@ -133,7 +133,7 @@ def _initialize_database_pool():
 _initialize_database_pool()
 
 # Add this after the function call
-USER_DB_LABEL = get_db_label(DATABASE_URI) if DATABASE_URI else "unknown"
+USER_DB_LABEL = get_db_label(USER_DATABASE) if USER_DATABASE else "unknown"
 # ============================================================
 # DB SIZE
 # ============================================================
