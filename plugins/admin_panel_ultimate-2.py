@@ -70,6 +70,7 @@ try:
         DBS,          # list of all motor databases
         MODELS,       # list of umongo models (one per DB)
         COLLECTIONS,  # list of motor collections
+        DB_LABELS,    # human-readable cluster labels for each DB
     )
 except Exception:
     db = db2 = db3 = None
@@ -77,6 +78,7 @@ except Exception:
     DBS = []
     MODELS = []
     COLLECTIONS = []
+    DB_LABELS = []
     LOGGER.exception("Could not import database.ia_filterdb")
 
 try:
@@ -316,6 +318,23 @@ def progress_bar(current: Any, total: Any, length: int = 20) -> str:
         percent = 0.0
 
     return pct_bar(percent, length)
+
+def capacity_bar(used_mb: float, total_mb: float = 512.0, length: int = 20) -> str:
+    """
+    Show a bar like:
+    [██████████░░░░░░░░░░] 48.0% used
+    """
+    try:
+        used_mb = float(used_mb)
+        total_mb = float(total_mb)
+        percent = (used_mb / total_mb) * 100
+        percent = max(0, min(100, percent))
+        filled = int(length * percent / 100)
+        empty = length - filled
+        bar = "█" * filled + "░" * empty
+        return f"{bar} {percent:.1f}% used"
+    except Exception:
+        return "N/A"
 
 
 def status_icon(status: Any) -> str:
@@ -852,9 +871,10 @@ def add_network_rates(metrics: Dict[str, Any]) -> Dict[str, Any]:
 # DATABASE METRICS
 # ============================================================
 
-async def collect_one_database(database, model, label: str) -> Dict[str, Any]:
+async def collect_one_database(database, model, label: str, cluster_label: str = "") -> Dict[str, Any]:
     result = {
         "label": label,
+        "cluster": cluster_label,
         "status": "OFFLINE",
         "database_name": "",
         "documents": 0,
@@ -876,9 +896,11 @@ async def collect_one_database(database, model, label: str) -> Dict[str, Any]:
     if database is None:
         return result
 
-    try:
+        try:
         result["database_name"] = getattr(database, "name", "") or ""
-
+        result["label"] = label
+        result["cluster"] = cluster_label   # ✅ add this
+        
         db_stats = await database.command("dbStats")
 
         result["data_size"] = safe_int(db_stats.get("dataSize"))
@@ -901,7 +923,7 @@ async def collect_one_database(database, model, label: str) -> Dict[str, Any]:
 
         if model is not None:
             try:
-                result["documents"] = await model.count_documents({})
+                        result["documents"] = await model.collection.count_documents({})
             except Exception:
                 pass
 
@@ -936,8 +958,16 @@ async def collect_one_database(database, model, label: str) -> Dict[str, Any]:
 async def collect_database_metrics() -> list:
     tasks = []
     for i, (database, model) in enumerate(zip(DBS, MODELS)):
+        cluster_label = DB_LABELS[i] if i < len(DB_LABELS) else "unknown"
         label = f"DATABASE {i+1:02d}"
-        tasks.append(collect_one_database(database, model, label))
+        tasks.append(
+            collect_one_database(
+                database,
+                model,
+                label,
+                cluster_label,
+            )
+        )
     try:
         return await asyncio.gather(*tasks)
     except Exception as exc:
@@ -1267,13 +1297,14 @@ async def build_database_page():
         f"🗄️ Databases: <b>{len(databases)}</b>\n\n"
     )
 
-    for item in databases:
+       for item in databases:
         text += (
             f"{status_icon(item.get('status'))} "
             f"<b>{html_escape(item.get('label'))}</b>\n"
-            f"🏷️ Name: <code>{html_escape(item.get('database_name'))}</code>\n"
+            f"🏷️ Cluster: <code>{html_escape(item.get('cluster', 'N/A'))}</code>\n"
             f"📦 Files: <b>{fmt_number(item.get('documents'))}</b>\n"
             f"💾 Storage: <b>{fmt_bytes(item.get('total_size'))}</b>\n"
+            f"📊 Capacity: <code>{capacity_bar(safe_float(item.get('total_size')) / (1024*1024))}</code>\n"
             f"📄 Data: <b>{fmt_bytes(item.get('data_size'))}</b>\n"
             f"🧩 Indexes: <b>{fmt_bytes(item.get('index_size'))}</b>\n"
             f"🗂️ Collections: <b>{fmt_number(item.get('collections'))}</b>\n"
