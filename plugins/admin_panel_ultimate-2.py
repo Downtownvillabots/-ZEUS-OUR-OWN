@@ -688,13 +688,25 @@ try:
     _memory_handler.setLevel(logging.INFO)
     logging.getLogger().addHandler(_memory_handler)
 
-    # Add handler to ALL loggers and force propagation to root
-    for logger_name in list(logging.Logger.manager.loggerDict.keys()):
-        lg = logging.getLogger(logger_name)
-        if not any(isinstance(h, TelegramMemoryLogHandler) for h in lg.handlers):
-            lg.addHandler(_memory_handler)
+    # Explicitly attach to the database logger (and its children)
+    db_logger = logging.getLogger("database")
+    db_logger.addHandler(_memory_handler)
+    db_logger.setLevel(logging.INFO)
+    db_logger.propagate = True
+
+    # Attach to the specific ia_filterdb logger
+    ia_logger = logging.getLogger("database.ia_filterdb")
+    ia_logger.addHandler(_memory_handler)
+    ia_logger.setLevel(logging.INFO)
+    ia_logger.propagate = True
+
+    # Also attach to plugins and dreamxbotz loggers (they may also have propagate=0)
+    for name in ["plugins", "dreamxbotz"]:
+        lg = logging.getLogger(name)
+        lg.addHandler(_memory_handler)
         lg.setLevel(logging.INFO)
         lg.propagate = True
+
 except Exception:
     pass
 # ============================================================
