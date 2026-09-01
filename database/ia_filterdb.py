@@ -12,7 +12,7 @@ from utils import get_settings, save_group_settings
 from info import (
     COLLECTION_NAME, COVERX, DATABASE_NAME, DATABASE_URI, DATABASE_URI2, DATABASE_URI3,
     INDEX_CAPTION, MAX_B_TN, MULTIPLE_DB, ULTRA_FAST_MODE, USE_CAPTION_FILTER,
-    DATABASE_URIS  # <-- NEW: list of all URIs from info.py
+    DATABASE_URIS  # <-- list of all URIs
 )
 from datetime import datetime, timedelta
 import asyncio
@@ -21,7 +21,6 @@ from functools import lru_cache
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# ---------------------------------------------------------
 # Global cache for DB size
 _db_stats_cache = {"timestamp": None, "primary_size": 0.0}
 
@@ -32,8 +31,6 @@ def compile_regex(pattern):
 # ============================================================
 # DYNAMIC DATABASE POOL (UNLIMITED)
 # ============================================================
-# Create connections, databases, instances, and models for all URIs
-# `DATABASE_URIS` is a list from info.py (at least one URI).
 _all_clients = []
 _all_dbs = []
 _all_instances = []
@@ -47,7 +44,6 @@ for uri in DATABASE_URIS:
     _all_dbs.append(db)
     _all_instances.append(instance)
 
-# Create a model class for each instance (umongo requires separate classes per instance)
 def _create_model(instance):
     class MediaModel(Document):
         file_id = fields.StrField(attribute="_id")
@@ -66,26 +62,30 @@ def _create_model(instance):
     instance.register(MediaModel)
     return MediaModel
 
-for inst in _all_instances:
-    _all_models.append(_create_model(inst))
+# Create models and assign collection attribute
+MODELS = []
+COLLECTIONS = []
+for db in _all_dbs:
+    inst = Instance.from_db(db)
+    model = _create_model(inst)
+    # Explicitly set collection attribute on the model class
+    model.collection = db[COLLECTION_NAME]
+    MODELS.append(model)
+    COLLECTIONS.append(db[COLLECTION_NAME])
 
-# Expose the first three models for backward compatibility
-Media = _all_models[0]
-Media2 = _all_models[1] if len(_all_models) > 1 else Media
-Media3 = _all_models[2] if len(_all_models) > 2 else Media2
-
-# Also expose the first three databases (backward compatibility)
+# Backward compatible aliases
+Media = MODELS[0] if MODELS else None
+Media2 = MODELS[1] if len(MODELS) > 1 else Media
+Media3 = MODELS[2] if len(MODELS) > 2 else Media2
 db = _all_dbs[0]
 db2 = _all_dbs[1] if len(_all_dbs) > 1 else db
 db3 = _all_dbs[2] if len(_all_dbs) > 2 else db2
 
-# List of all database objects and models for dynamic operations
+# Expose as lists for admin panel, etc.
 DBS = _all_dbs
-MODELS = _all_models
-COLLECTIONS = [model.collection for model in MODELS]  # each model has a collection attribute
 
 # ============================================================
-# CHECK DB SIZE (unchanged, but now uses `db` argument)
+# CHECK DB SIZE (unchanged)
 # ============================================================
 async def check_db_size(db):
     try:
@@ -110,7 +110,7 @@ async def check_db_size(db):
         return 0
 
 # ============================================================
-# SAVE FILE (Preserved behavior but now works across all DBs)
+# SAVE FILE (preserved behavior, works across all DBs)
 # ============================================================
 async def save_file(media):
     """Save file in database, with detailed logging and dynamic selection."""
@@ -119,7 +119,7 @@ async def save_file(media):
         r"[_\-\.#+$%^&*()!~`,;:\"'?/<>\[\]{}=|\\]", " ", str(media.file_name)
     )
     file_name = re.sub(r"\s+", " ", file_name).strip()
-    
+
     # Check duplicates across ALL databases
     for idx, model in enumerate(MODELS):
         exists = await model.find_one({"file_id": file_id})
@@ -171,7 +171,7 @@ async def save_file(media):
     return True, 1
 
 # ============================================================
-# GET SEARCH RESULTS (Preserved logic, searches all DBs)
+# GET SEARCH RESULTS (preserved logic, searches all DBs)
 # ============================================================
 async def get_search_results(chat_id, query, file_type=None, max_results=None, offset=0, filter=False):
     if chat_id is not None and max_results is None:
@@ -213,10 +213,8 @@ async def get_search_results(chat_id, query, file_type=None, max_results=None, o
     if ULTRA_FAST_MODE:
         limit = max_results + 1
         fetch_limit = offset + limit
-        # Query all collections in parallel
         tasks = [model.find(filter_mongo).sort("$natural", -1).limit(fetch_limit).to_list(length=fetch_limit) for model in MODELS]
         results = await asyncio.gather(*tasks)
-        # Combine and sort (here we simply concatenate; order not strictly global)
         files = []
         for res in results:
             files.extend(res)
@@ -228,7 +226,6 @@ async def get_search_results(chat_id, query, file_type=None, max_results=None, o
         total_results = offset + len(files) + (1 if has_next_page else 0)
     else:
         fetch_limit = offset + max_results
-        # Count and find across all collections
         count_tasks = [model.count_documents(filter_mongo) for model in MODELS]
         find_tasks = [model.find(filter_mongo).sort("$natural", -1).limit(fetch_limit).to_list(length=fetch_limit) for model in MODELS]
         count_results, find_results = await asyncio.gather(
@@ -246,7 +243,7 @@ async def get_search_results(chat_id, query, file_type=None, max_results=None, o
     return files, next_offset, total_results
 
 # ============================================================
-# GET BAD FILES (Preserved behavior, searches all DBs)
+# GET BAD FILES (preserved, searches all DBs)
 # ============================================================
 async def get_bad_files(query, file_type=None):
     query = query.strip()
@@ -261,15 +258,9 @@ async def get_bad_files(query, file_type=None):
     except re.error:
         return [], 0
     if USE_CAPTION_FILTER:
-        filter_mongo = {
-            "$or": [
-                {"file_name": regex},
-                {"caption": regex}
-            ]
-        }
+        filter_mongo = {"$or": [{"file_name": regex}, {"caption": regex}]}
     else:
         filter_mongo = {"file_name": regex}
-
     if file_type:
         filter_mongo["file_type"] = file_type
 
@@ -282,7 +273,7 @@ async def get_bad_files(query, file_type=None):
     return files, len(files)
 
 # ============================================================
-# GET FILE DETAILS (Preserved behavior, searches all DBs)
+# GET FILE DETAILS (preserved, searches all DBs)
 # ============================================================
 async def get_file_details(query):
     filter = {"file_id": query}
@@ -313,7 +304,6 @@ def encode_file_ref(file_ref: bytes) -> str:
     return base64.urlsafe_b64encode(file_ref).decode().rstrip("=")
 
 def unpack_new_file_id(new_file_id):
-    """Return file_id, file_ref"""
     decoded = FileId.decode(new_file_id)
     file_id = encode_file_id(
         pack(
@@ -328,16 +318,11 @@ def unpack_new_file_id(new_file_id):
     return file_id, file_ref
 
 # ============================================================
-# DREAMXBOTZ FETCH MEDIA (Adapted to use all DBs, preserving old logic)
+# DREAMXBOTZ FETCH MEDIA (preserved, works across all DBs)
 # ============================================================
 async def dreamxbotz_fetch_media(limit: int) -> List[dict]:
     try:
-        # Prefer the DB with most free space? For simplicity, we just fetch from the first DB
-        # but you could iterate all and combine. The original logic picked based on size.
-        # To preserve behavior, we'll pick the first DB by default, but if MULTIPLE_DB,
-        # we pick the first non-full DB. We'll mimic the original logic with all DBs.
         if len(DBS) > 1:
-            # Find the first DB with size < 407 MB
             for idx, d in enumerate(DBS):
                 size = await check_db_size(d)
                 if size < 407:
