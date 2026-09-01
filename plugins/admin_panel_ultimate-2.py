@@ -687,14 +687,16 @@ try:
     _memory_handler = TelegramMemoryLogHandler()
     _memory_handler.setLevel(logging.INFO)
     logging.getLogger().addHandler(_memory_handler)
-    # Add to loggers that don't propagate to root
-    for logger_name in ["database", "plugins", "dreamxbotz"]:
-        logger = logging.getLogger(logger_name)
-        logger.addHandler(_memory_handler)
-        logger.setLevel(logging.INFO)
+
+    # Add handler to ALL loggers and force propagation to root
+    for logger_name in list(logging.Logger.manager.loggerDict.keys()):
+        lg = logging.getLogger(logger_name)
+        if not any(isinstance(h, TelegramMemoryLogHandler) for h in lg.handlers):
+            lg.addHandler(_memory_handler)
+        lg.setLevel(logging.INFO)
+        lg.propagate = True
 except Exception:
     pass
-
 # ============================================================
 # SYSTEM METRICS
 # ============================================================
