@@ -71,6 +71,7 @@ try:
         MODELS,       # list of umongo models (one per DB)
         COLLECTIONS,  # list of motor collections
         DB_LABELS,    # human-readable cluster labels for each DB
+        USER_DB_LABEL # label for the primary user database
     )
 except Exception:
     db = db2 = db3 = None
@@ -1335,19 +1336,20 @@ async def build_user_database_page():
     if db is None:
         return "👥 <b>USER DATABASE</b>\n\n🔴 No primary database available."
 
-    try:
-        db_stats = await db.command("dbStats")
-        total_size = safe_int(db_stats.get("dataSize")) + safe_int(db_stats.get("indexSize"))
-        collections_count = safe_int(db_stats.get("collections"))
-        indexes_count = safe_int(db_stats.get("indexes"))
+    # Reuse the same collector as media databases, but with model=None
+    item = await collect_one_database(db, None, "USER DATABASE", USER_DB_LABEL)
 
-        text = (
-            "👥 <b>USER DATABASE</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    text = (
+        "👥 <b>USER DATABASE</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    )
+
+    if item.get("status") == "ONLINE":
+        text += (
             f"{status_icon(item.get('status'))} "
             f"<b>{html_escape(item.get('label'))}</b>\n"
             f"🏷️ Cluster: <code>{html_escape(item.get('cluster', 'N/A'))}</code>\n"
-            f"📦 Files: <b>{fmt_number(item.get('documents'))}</b>\n"
+            f"📦 Documents: <b>{fmt_number(item.get('documents'))}</b>\n"
             f"💾 Storage: <b>{fmt_bytes(item.get('total_size'))}</b>\n"
             f"📊 Capacity: <code>{capacity_bar(safe_float(item.get('total_size')) / (1024*1024))}</code>\n"
             f"📄 Data: <b>{fmt_bytes(item.get('data_size'))}</b>\n"
@@ -1357,23 +1359,15 @@ async def build_user_database_page():
             f"📊 Collection: <b>{fmt_bytes(item.get('collection_size'))}</b>\n"
             f"🧱 Collection Storage: <b>{fmt_bytes(item.get('collection_storage'))}</b>\n"
             f"🔢 Collection Indexes: <b>{fmt_bytes(item.get('collection_indexes'))}</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "📚 <b>COLLECTIONS</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
-
-        collection_names = await db.list_collection_names()
-        for col_name in sorted(collection_names):
-            try:
-                col = db[col_name]
-                count = await col.count_documents({})
-                text += f"• <code>{html_escape(col_name)}</code> : <b>{fmt_number(count)}</b>\n"
-            except Exception:
-                text += f"• <code>{html_escape(col_name)}</code> : <b>N/A</b>\n"
-
-    except Exception as exc:
-        LOGGER.exception("Error building user database page: %s", exc)
-        return "👥 <b>USER DATABASE</b>\n\n⚠️ Failed to fetch details."
+    else:
+        text += (
+            f"{status_icon(item.get('status'))} "
+            f"<b>{html_escape(item.get('label'))}</b>\n"
+            f"🏷️ Cluster: <code>{html_escape(item.get('cluster', 'N/A'))}</code>\n"
+            f"⚠️ Status: <b>{item.get('status')}</b>\n"
+            f"⚠️ Last Error: <code>{short_text(item.get('last_error'), 220)}</code>\n"
+        )
 
     return text[:4000]
 
