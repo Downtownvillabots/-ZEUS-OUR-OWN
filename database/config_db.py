@@ -1,5 +1,5 @@
 from motor.motor_asyncio import AsyncIOMotorClient
-from info import DATABASE_URI
+from info import USER_DATABASE
 
 class Database:
     def __init__(self, uri, db_name):
@@ -36,4 +36,4 @@ class Database:
     async def delete_all_messages(self):
         await self.col.delete_many({})
 
-mdb = Database(DATABASE_URI, "admin_database")
+mdb = Database(USER_DATABASE, "admin_database")
