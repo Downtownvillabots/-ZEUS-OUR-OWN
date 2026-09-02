@@ -19,6 +19,7 @@ from Script import script
 from pyrogram.errors.exceptions.bad_request_400 import MediaEmpty, PhotoInvalidDimensions, WebpageMediaEmpty
 from database.refer import referdb
 from database.users_chats_db import db
+from plugins.request_handler import add_request
 import asyncio
 import re
 import math
@@ -368,15 +369,33 @@ async def advantage_spoll_choker(bot, query):
         reqstr1 = query.from_user.id if query.from_user else 0
         reqstr = await bot.get_users(reqstr1)
         if NO_RESULTS_MSG:
+            # Generate a unique token (no database)
+            req_token = add_request(reqstr1, movie, query.message.chat.id)
+
+            # Premium multi‑button keyboard
+            bin_buttons = InlineKeyboardMarkup([[
+                InlineKeyboardButton("✅ ᴍᴀʀᴋ ᴀᴠᴀɪʟᴀʙʟᴇ ✅", callback_data=f"avail_{req_token}"),
+                InlineKeyboardButton("📌 ɴᴏᴛ ʀᴇʟᴇᴀꜱᴇᴅ 📌", callback_data=f"nrel_{req_token}")
+            ],[
+                InlineKeyboardButton("❌ ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ ❌", callback_data=f"unav_{req_token}"),
+                InlineKeyboardButton("🗑️ ᴄᴀɴᴄᴇʟ 🗑️", callback_data=f"cancel_{req_token}")
+            ]])
+
             try:
-                await bot.send_message(chat_id=BIN_CHANNEL, text=script.NORSLTS.format(reqstr.id, reqstr.mention, movie))
+                await bot.send_message(
+                    chat_id=BIN_CHANNEL,
+                    text=script.NORSLTS.format(reqstr.id, reqstr.mention, movie),
+                    reply_markup=bin_buttons,
+                    parse_mode="HTML"
+                )
             except Exception as e:
                 logger.error("Error In Spol: %s — Make Sure Bot Admin BIN CHANNEL", e)
         btn = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔰Cʟɪᴄᴋ ʜᴇʀᴇ & ʀᴇǫᴜᴇsᴛ ᴛᴏ ᴀᴅᴍɪɴ🔰", url=OWNER_LNK)]])
+            [[InlineKeyboardButton("🔰ᴄʟɪᴄᴋ ʜᴇʀᴇ & ʀᴇǫᴜᴇꜱᴛ ᴛᴏ ᴀᴅᴍɪɴ🔰", url=OWNER_LNK)]])
         k = await query.message.edit(script.MVE_NT_FND, reply_markup=btn)
         await asyncio.sleep(10)
         await k.delete()
+
 
 # Qualities
 @Client.on_callback_query(filters.regex(r"^qualities#"))
