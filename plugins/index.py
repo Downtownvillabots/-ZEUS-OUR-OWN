@@ -10,12 +10,13 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils import temp, get_readable_time
 from math import ceil
 
-# Import live task functions from admin panel (safe, no circular import)
-from plugins.admin_panel_ultimate-2 import (
-    start_live_task,
-    update_live_task,
-    finish_live_task,
-)
+import importlib
+
+# Import admin panel functions dynamically (because filename has a hyphen)
+admin_panel = importlib.import_module("plugins.admin_panel_ultimate-2")
+start_live_task = admin_panel.start_live_task
+update_live_task = admin_panel.update_live_task
+finish_live_task = admin_panel.finish_live_task
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
