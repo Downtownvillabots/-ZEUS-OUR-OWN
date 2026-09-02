@@ -2042,7 +2042,7 @@ async def run_backup(
             name="Media Backup",
             task_type="BACKUP",
             total=pending_count,
-            owner="System",
+            
         )
         STATE["live_task_id"] = task_id
     except Exception as e:
