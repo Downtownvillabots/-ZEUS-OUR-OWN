@@ -1529,7 +1529,7 @@ async def auto_filter(client, msg, spoll=False):
             m = await message.reply_text(f'🔎 sᴇᴀʀᴄʜɪɴɢ {search}', reply_to_message_id=message.id)
             settings = await get_settings(message.chat.id)
             await msg.message.delete()
-                    key = f"{message.chat.id}-{message.id}"
+        key = f"{message.chat.id}-{message.id}"
         FRESH[key] = search
         temp.GETALL[key] = files
         req = message.from_user.id if message.from_user else 0
