@@ -30,8 +30,6 @@ lock = asyncio.Lock()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.ERROR)
 
-
-
 TIMEZONE = "Asia/Kolkata"
 BUTTON = {}
 BUTTONS = {}
@@ -40,8 +38,6 @@ BUTTONS0 = {}
 BUTTONS1 = {}
 BUTTONS2 = {}
 SPELL_CHECK = {}
-
-
 @Client.on_message(filters.group & filters.text & filters.incoming & ~filters.regex(r"^/") )
 async def give_filter(client, message):
     if EMOJI_MODE:
@@ -79,7 +75,6 @@ async def give_filter(client, message):
                 [[InlineKeyboardButton("🔍 ᴊᴏɪɴ ᴀɴᴅ ꜱᴇᴀʀᴄʜ ʜᴇʀᴇ 🔎", url=GRP_LNK)]])
         )
 
-
 @Client.on_message(filters.private & filters.text & filters.incoming & ~filters.regex(r"^/") & ~filters.regex(r"(https?://)?(t\.me|telegram\.me|telegram\.dog)/"))
 async def pm_text(bot, message):
     bot_id = bot.me.id
@@ -110,8 +105,6 @@ async def pm_text(bot, message):
             )
     except Exception:
         pass
-
-
 @Client.on_callback_query(filters.regex(r"^reffff"))
 async def refercall(bot, query):
     btn = [[
@@ -214,6 +207,7 @@ async def next_page(bot, query):
                 "ʀᴇᴍᴏᴠᴇ ᴀᴅs", url=f"https://t.me/{temp.U_NAME}?start=premium"),
             InlineKeyboardButton("Sᴇɴᴅ Aʟʟ", callback_data=f"sendfiles#{key}")
         ])
+
     if ULTRA_FAST_MODE:
         if 0 < offset <= 10:
             off_set = 0
@@ -349,7 +343,6 @@ async def next_page(bot, query):
             pass
     await query.answer()
 
-
 @Client.on_callback_query(filters.regex(r"^spol"))
 async def advantage_spoll_choker(bot, query):
     _, id, user = query.data.split('#')
@@ -368,7 +361,7 @@ async def advantage_spoll_choker(bot, query):
         reqstr1 = query.from_user.id if query.from_user else 0
         reqstr = await bot.get_users(reqstr1)
         if NO_RESULTS_MSG:
-            # Generate a unique token (no database)
+            # Generate a unique token (no database) using _add_request
             req_token = _add_request(reqstr1, movie, query.message.chat.id)
 
             # Premium multi‑button keyboard
@@ -394,7 +387,6 @@ async def advantage_spoll_choker(bot, query):
         k = await query.message.edit(script.MVE_NT_FND, reply_markup=btn)
         await asyncio.sleep(10)
         await k.delete()
-
 
 # Qualities
 @Client.on_callback_query(filters.regex(r"^qualities#"))
@@ -553,9 +545,6 @@ async def filter_qualities_cb_handler(client: Client, query: CallbackQuery):
             pass
     await query.answer()
 
-# languages
-
-
 @Client.on_callback_query(filters.regex(r"^languages#"))
 async def languages_cb_handler(client: Client, query: CallbackQuery):
     _, req, key = query.data.split("#")
@@ -707,20 +696,19 @@ async def filter_languages_cb_handler(client: Client, query: CallbackQuery):
             pass
     await query.answer()
 
-
 @Client.on_callback_query(filters.regex(r"^seasons#"))
 async def seasons_cb_handler(client: Client, query: CallbackQuery):
     _, req, key = query.data.split("#")
     try:
         if int(req) not in [query.from_user.id, 0]:
             return await query.answer(
-                f"⚠️ ʜᴇʟʟᴏ {query.from_user.first_name},\nᴛʜɪꜱ ɪꜱ ɴᴏᴛ ʏᴏᴜʀ ᴍᴏᴠɪᴇ ʀᴇǫᴜᴇꜱᴛ,\nʀᴇǫᴜᴇꜱᴛ ʏᴏᴜʀ'ꜱ…",
+                f"⚠️ ʜᴇʟʟᴏ {query.from_user.first_name},\nᴛʜɪꜱ ɪꜱ ɴᴏᴛ ʏᴏᴜʀ ᴍᴏᴠɪᴇ ʀᴇǫᴜᴇꜱᴛ,\nʀᴇǫᴜᴇꜱᴛ ʏᴏᴜʀ'ꜱ…",
                 show_alert=True,
             )
     except Exception:
         pass
     offset = 0
-    btn: list[list[InlineKeyboardButton]] = []
+    btn = []
     for i in range(0, len(SEASONS) - 1, 2):
         btn.append([
             InlineKeyboardButton(
@@ -731,9 +719,9 @@ async def seasons_cb_handler(client: Client, query: CallbackQuery):
 
     btn.insert(
         0,
-        [InlineKeyboardButton("⇊ ꜱᴇʟᴇᴄᴛ ꜱᴇᴀꜱᴏɴ ⇊", callback_data="ident")],
+        [InlineKeyboardButton("⇊ ꜱᴇʟᴇᴄᴛ ꜱᴇᴀꜱᴏɴ ⇊", callback_data="ident")],
     )
-    btn.append([InlineKeyboardButton(text="↭ ʙᴀᴄᴋ ᴛᴏ ꜰɪʟᴇs ​↭",
+    btn.append([InlineKeyboardButton(text="↭ ʙᴀᴄᴋ ᴛᴏ ꜰɪʟᴇs ↭",
                callback_data=f"next_{req}_{key}_{offset}")])
     await query.edit_message_reply_markup(InlineKeyboardMarkup(btn))
     await query.answer()
@@ -767,7 +755,7 @@ async def filter_seasons_cb_handler(client: Client, query: CallbackQuery):
 
     temp.GETALL[key] = files
     settings = await get_settings(chat_id)
-    btn: list[list[InlineKeyboardButton]] = []
+    btn = []
     if settings.get("button"):
         btn.extend(
             [
@@ -820,7 +808,7 @@ async def filter_seasons_cb_handler(client: Client, query: CallbackQuery):
         n_offset = 0
         btn.append(
             [InlineKeyboardButton(
-                "↭  ɴᴏ ᴍᴏʀᴇ ᴘᴀɢᴇꜱ ᴀᴠᴀɪʟᴀʙʟᴇ ↭", callback_data="pages")]
+                "↭ ɴᴏ ᴍᴏʀᴇ ᴘᴀɢᴇꜱ ᴀᴠᴀɪʟᴀʙʟᴇ ↭", callback_data="pages")]
         )
     if not settings.get("button"):
         curr_time = datetime.now(pytz.timezone("Asia/Kolkata")).time()
@@ -847,7 +835,6 @@ async def filter_seasons_cb_handler(client: Client, query: CallbackQuery):
             pass
     await query.answer()
 
-
 @Client.on_callback_query(group=10)
 async def cb_handler(client: Client, query: CallbackQuery):
     DreamxData = query.data
@@ -872,8 +859,6 @@ async def cb_handler(client: Client, query: CallbackQuery):
     elif query.data == "pages":
         await query.answer("ᴛʜɪs ɪs ᴘᴀɢᴇs ʙᴜᴛᴛᴏɴ 😅")
 
-
-
     if query.data.startswith("file"):
         ident, file_id = query.data.split("#")
         user = query.message.reply_to_message.from_user.id if query.message.reply_to_message else query.from_user.id
@@ -895,11 +880,9 @@ async def cb_handler(client: Client, query: CallbackQuery):
             logger.exception(e)
             await query.answer(url=f"https://telegram.me/{temp.U_NAME}?start=sendfiles4_{key}")
 
-
-
     elif query.data.startswith("autofilter_delete"):
         await Media.collection.drop()
-        if MULTIPLE_DB:    
+        if MULTIPLE_DB:
             await Media2.collection.drop()
         await query.answer("Eᴠᴇʀʏᴛʜɪɴɢ's Gᴏɴᴇ")
         await query.message.edit('ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟʟʏ ᴅᴇʟᴇᴛᴇᴅ ᴀʟʟ ɪɴᴅᴇxᴇᴅ ꜰɪʟᴇꜱ ✅')
@@ -910,7 +893,7 @@ async def cb_handler(client: Client, query: CallbackQuery):
             btn = []
             chat = file_id.split("_")[0]
             settings = await get_settings(chat)
-            fsub_channels = list(dict.fromkeys((settings.get('fsub', []) if settings else [])+ AUTH_CHANNELS)) 
+            fsub_channels = list(dict.fromkeys((settings.get('fsub', []) if settings else [])+ AUTH_CHANNELS))
             btn += await is_subscribed(client, query.from_user.id, fsub_channels)
             btn += await is_req_subscribed(client, query.from_user.id, AUTH_REQ_CHANNELS)
             if btn:
@@ -922,7 +905,7 @@ async def cb_handler(client: Client, query: CallbackQuery):
                 await query.answer(
                     f"👋 Hello {query.from_user.first_name},\n\n"
                     "🛑 Yᴏᴜ ʜᴀᴠᴇ ɴᴏᴛ ᴊᴏɪɴᴇᴅ ᴀʟʟ ʀᴇǫᴜɪʀᴇᴅ ᴜᴘᴅᴀᴛᴇ Cʜᴀɴɴᴇʟs.\n"
-                    "👉 Pʟᴇᴀsᴇ ᴊᴏɪɴ ᴇᴀᴄʜ ᴏɴᴇ ᴀɴᴅ ᴛʀʏ ᴀɢᴀɪɴ.\n",
+                    "👉 Pʟᴇᴀꜱᴇ ᴊᴏɪɴ ᴇᴀᴄʜ ᴏɴᴇ ᴀɴᴅ ᴛʀʏ ᴀɢᴀɪɴ.\n",
                     show_alert=True
                 )
                 return
@@ -932,7 +915,6 @@ async def cb_handler(client: Client, query: CallbackQuery):
         except Exception as e:
             await log_error(client, f"❌ Error in checksub callback:\n\n{repr(e)}")
             logger.error(f"❌ Error in checksub callback:\n\n{repr(e)}")
-
 
     elif query.data.startswith("killfilesdq"):
         ident, keyword = query.data.split("#")
@@ -946,16 +928,11 @@ async def cb_handler(client: Client, query: CallbackQuery):
                 for file in files:
                     file_ids = file.file_id
                     file_name = file.file_name
-                    result = await Media.collection.delete_one({
-                        '_id': file_ids,
-                    })
+                    result = await Media.collection.delete_one({'_id': file_ids})
                     if not result.deleted_count and MULTIPLE_DB:
-                        result = await Media2.collection.delete_one({
-                            '_id': file_ids,
-                        })
+                        result = await Media2.collection.delete_one({'_id': file_ids})
                     if result.deleted_count:
-                        logger.info(
-                            f'ꜰɪʟᴇ ꜰᴏᴜɴᴅ ꜰᴏʀ ʏᴏᴜʀ ǫᴜᴇʀʏ {keyword}! ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟʟʏ ᴅᴇʟᴇᴛᴇᴅ {file_name} ꜰʀᴏᴍ ᴅᴀᴛᴀʙᴀꜱᴇ.')
+                        logger.info(f'ꜰɪʟᴇ ꜰᴏᴜɴᴅ ꜰᴏʀ ʏᴏᴜʀ ǫᴜᴇʀʏ {keyword}! ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟʟʏ ᴅᴇʟᴇᴛᴇᴅ {file_name} ꜰʀᴏᴍ ᴅᴀᴛᴀʙᴀꜱᴇ.')
                     deleted += 1
                     if deleted % 20 == 0:
                         await query.message.edit_text(f"<b>ᴘʀᴏᴄᴇꜱꜱ ꜱᴛᴀʀᴛᴇᴅ ꜰᴏʀ ᴅᴇʟᴇᴛɪɴɢ ꜰɪʟᴇꜱ ꜰʀᴏᴍ ᴅʙ. ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟʟʏ ᴅᴇʟᴇᴛᴇᴅ {str(deleted)} ꜰɪʟᴇꜱ ꜰʀᴏᴍ ᴅʙ ꜰᴏʀ ʏᴏᴜʀ ǫᴜᴇʀʏ {keyword} !\n\nᴘʟᴇᴀꜱᴇ ᴡᴀɪᴛ...</b>")
@@ -1045,7 +1022,7 @@ async def cb_handler(client: Client, query: CallbackQuery):
         ident, from_user = query.data.split("#")
         if query.from_user.id not in ADMINS:
             return await query.answer("Yᴏᴜ ᴅᴏɴ'ᴛ ʜᴀᴠᴇ sᴜғғɪᴄɪᴀɴᴛ ʀɪɢʜᴛs ᴛᴏ ᴅᴏ ᴛʜɪs !", show_alert=True)
-            
+
         status_configs = {
             "unavailable": {
                 "btn_text": "⚠️ ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ ⚠️", "alert_key": "unalert", "answer": "Sᴇᴛ ᴛᴏ Uɴᴀᴠᴀɪʟᴀʙʟᴇ !",
@@ -1093,12 +1070,12 @@ async def cb_handler(client: Client, query: CallbackQuery):
         ]]
         if cfg["search"]:
             btn2.append([InlineKeyboardButton("🔍 ꜱᴇᴀʀᴄʜ ʜᴇʀᴇ 🔎", url=GRP_LNK)])
-            
+
         content = query.message.text
         await query.message.edit_text(f"<b><strike>{content}</strike></b>")
         await query.message.edit_reply_markup(InlineKeyboardMarkup(btn))
         await query.answer(cfg["answer"])
-        
+
         req_content = extract_request_content(query.message.text)
         try:
             await client.send_message(
@@ -1112,7 +1089,6 @@ async def cb_handler(client: Client, query: CallbackQuery):
                 text=cfg["sup"].format(mention=user.mention, content=req_content),
                 reply_markup=InlineKeyboardMarkup(btn2)
             )
-
     elif query.data.split("#")[0] in ["alalert", "upalert", "unalert", "hnalert", "nralert", "wsalert"]:
         ident, from_user = query.data.split("#")
         alerts = {
@@ -1145,8 +1121,7 @@ async def cb_handler(client: Client, query: CallbackQuery):
                 text=f"•• ʟɪɴᴋ ɢᴇɴᴇʀᴀᴛᴇᴅ ꜰᴏʀ ɪᴅ #{user_id} \n•• ᴜꜱᴇʀɴᴀᴍᴇ : {username} \n\n•• ᖴᎥᒪᗴ Nᗩᗰᗴ : {fileName}",
                 quote=True,
                 disable_web_page_preview=True,
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 ꜰᴀꜱᴛ ᴅᴏᴡɴʟᴏᴀᴅ 🚀", url=dreamx_download),  # we download Link
-                                                    InlineKeyboardButton('🖥️ ᴡᴀᴛᴄʜ ᴏɴʟɪɴᴇ 🖥️', url=dreamx_stream)]])  # web stream Link
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 ꜰᴀꜱᴛ ᴅᴏᴡɴʟᴏᴀᴅ 🚀", url=dreamx_download), InlineKeyboardButton('🖥️ ᴡᴀᴛᴄʜ ᴏɴʟɪɴᴇ 🖥️', url=dreamx_stream)]])
             )
             dreamcinezone = await query.edit_message_reply_markup(
                 reply_markup=InlineKeyboardMarkup([
@@ -1167,7 +1142,6 @@ async def cb_handler(client: Client, query: CallbackQuery):
             await query.answer(f"⚠️ SOMETHING WENT WRONG STREAM LINK  \n\n{e}", show_alert=True)
             return
 
-
     elif query.data == "prestream":
         await query.answer(text=script.PRE_STREAM_ALERT, show_alert=True)
         dreamcinezone = await client.send_photo(
@@ -1180,9 +1154,6 @@ async def cb_handler(client: Client, query: CallbackQuery):
         )
         await asyncio.sleep(DELETE_TIME)
         await dreamcinezone.delete()
-
-
-
 
     elif query.data == "start":
         buttons = [[
@@ -1287,7 +1258,6 @@ async def cb_handler(client: Client, query: CallbackQuery):
             else:
                 await db.give_free_trial(user_id)
                 await query.answer("✅ Trial activated!", show_alert=True)
-
                 msg = await client.send_photo(
                     chat_id=query.message.chat.id,
                     photo="https://i.ibb.co/0jC8MSDZ/photo-2025-07-26-10-42-36-7531339283701956616.jpg",
@@ -1305,8 +1275,6 @@ async def cb_handler(client: Client, query: CallbackQuery):
                 return await msg.delete()
         except Exception:
             logging.exception("Error in give_trial callback")
-
-
 
     elif query.data == "source":
         buttons = [[
@@ -1353,7 +1321,6 @@ async def cb_handler(client: Client, query: CallbackQuery):
             )
         except Exception:
             logging.exception("Exception in 'premium_info' callback")
-
 
     elif query.data == "buy_info":
         try:
@@ -1407,7 +1374,6 @@ async def cb_handler(client: Client, query: CallbackQuery):
             )
         except Exception:
             logging.exception("Exception in 'star' callback")
-
 
     elif query.data.startswith("grp_pm"):
         _, grp_id = query.data.split("#")
@@ -1468,7 +1434,6 @@ async def cb_handler(client: Client, query: CallbackQuery):
             await query.message.edit_reply_markup(reply_markup)
     await query.answer(MSG_ALRT)
 
-
 async def auto_filter(client, msg, spoll=False):
     """
     Core auto_filter logic with timing/debug logging removed.
@@ -1487,7 +1452,6 @@ async def auto_filter(client, msg, spoll=False):
             except Exception:
                 pass
         except Exception:
-            # ignore scheduling errors
             pass
     m = None
     try:
@@ -1517,6 +1481,27 @@ async def auto_filter(client, msg, spoll=False):
                 files, offset, total_results = await get_search_results(message.chat.id, search, offset=0, filter=True)
                 settings = await get_settings(message.chat.id)
                 if not files:
+                    # ── Send NoResults to BIN channel with buttons ──
+                    user_id = message.from_user.id if message.from_user else 0
+                    req_token = _add_request(user_id, search, message.chat.id)
+                    bin_buttons = InlineKeyboardMarkup([[
+                        InlineKeyboardButton("✅ ᴍᴀʀᴋ ᴀᴠᴀɪʟᴀʙʟᴇ ✅", callback_data=f"avail_{req_token}"),
+                        InlineKeyboardButton("📌 ɴᴏᴛ ʀᴇʟᴇᴀꜱᴇᴅ 📌", callback_data=f"nrel_{req_token}")
+                    ],[
+                        InlineKeyboardButton("❌ ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ ❌", callback_data=f"unav_{req_token}"),
+                        InlineKeyboardButton("🗑️ ᴄᴀɴᴄᴇʟ 🗑️", callback_data=f"cancel_{req_token}")
+                    ]])
+                    try:
+                        await client.send_message(
+                            chat_id=BIN_CHANNEL,
+                            text=script.NORSLTS.format(user_id, message.from_user.mention if message.from_user else "Unknown", search),
+                            reply_markup=bin_buttons,
+                            parse_mode=enums.ParseMode.HTML
+                        )
+                        logger.info("Sent NoResults to BIN channel with buttons")
+                    except Exception as e:
+                        logger.error(f"Failed to send to BIN: {e}")
+
                     if settings.get("spell_check"):
                         ai_sts = await m.edit('🤖 ᴘʟᴇᴀꜱᴇ ᴡᴀɪᴛ, ᴀɪ ɪꜱ ᴄʜᴇᴄᴋɪɴɢ ʏᴏᴜʀ ꜱᴘᴇʟʟɪɴɢ...')
                         is_misspelled = await ai_spell_check(chat_id=message.chat.id, wrong_name=search)
@@ -1544,7 +1529,7 @@ async def auto_filter(client, msg, spoll=False):
             m = await message.reply_text(f'🔎 sᴇᴀʀᴄʜɪɴɢ {search}', reply_to_message_id=message.id)
             settings = await get_settings(message.chat.id)
             await msg.message.delete()
-        key = f"{message.chat.id}-{message.id}"
+                    key = f"{message.chat.id}-{message.id}"
         FRESH[key] = search
         temp.GETALL[key] = files
         req = message.from_user.id if message.from_user else 0
@@ -1811,9 +1796,23 @@ async def advantage_spell_chok(client, message):
         except Exception:
             pass
         return
+    user = message.from_user.id if message.from_user else 0
+    buttons = [
+        [InlineKeyboardButton(text=movie.title, callback_data=f"spol#{movie.imdb_id}#{user}")] for movie in movies
+    ]
+
+    buttons.append([InlineKeyboardButton(
+        text="🚫 ᴄʟᴏsᴇ 🚫", callback_data='close_data')])
+    d = await message.reply_text(text=script.CUDNT_FND.format(message.from_user.mention), reply_markup=InlineKeyboardMarkup(buttons), reply_to_message_id=message.id)
+    await asyncio.sleep(60)
+    await d.delete()
+    try:
+        await message.delete()
+    except Exception:
+        pass
 
 # ============================================================
-# REQUEST HANDLER (added directly to pmfilter for compatibility)
+# REQUEST HANDLER (directly in pmfilter for compatibility)
 # ============================================================
 
 import uuid as _uuid
@@ -1952,3 +1951,8 @@ async def _send_file_to_user(client, query):
         _remove_request(token)
     except Exception:
         await query.answer("❌ Failed to send.", show_alert=True)
+
+
+
+
+
