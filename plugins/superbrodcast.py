@@ -3,6 +3,8 @@ import asyncio
 import html
 import re
 import time
+import os
+from os import environ
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
 
@@ -27,6 +29,7 @@ logger.setLevel(logging.INFO)
 # ============================================================
 COLLECTION_CHANNELS = "superbroadcast_channels"
 COLLECTION_HISTORY = "superbroadcast_history"
+BROADCAST_LOG_CHANNEL = int(environ.get("BROADCAST_LOG_CHANNEL", "0")) or None
 MAX_CHANNELS_PAGE = 5
 MAX_USERS_PER_BATCH = 100
 DEFAULT_CAPTION = "🎬 <b>{title}</b>\n\n📁 {filename}\n💾 {filesize}\n🔗 {link}"
@@ -139,7 +142,7 @@ def render_caption(template: str, data: dict) -> str:
     return template
 
 def extract_metadata_from_filename(filename: str) -> dict:
-    """Extract quality, year, language, season, episode from filename."""
+    """Extract quality, year, language, season, episode, part from filename."""
     meta = {
         "quality": "",
         "year": "",
@@ -455,12 +458,14 @@ async def global_caption_menu(client: Client, query: CallbackQuery):
         "`{date}` - current date\n"
         "`{time}` - current time\n"
         "`{link}` - stream/download link\n\n"
-        "**HTML Example:**\n"
+        "**HTML Example (copy/paste and modify):**\n"
         "```html\n"
         "<b>🎬 {title}</b>\n"
         "<i>Quality: {quality}</i>\n"
         "💾 Size: {filesize}\n"
         "📁 File: {filename}\n"
+        "📅 Year: {year}\n"
+        "🌐 Language: {language}\n"
         "🔗 <a href='{link}'>Get Files</a>\n"
         "```"
     )
@@ -487,6 +492,11 @@ async def global_caption_edit_prompt(client: Client, query: CallbackQuery):
         "<i>Quality: {quality}</i>\n"
         "💾 Size: {filesize}\n"
         "📁 File: {filename}\n"
+        "📅 Year: {year}\n"
+        "🌐 Language: {language}\n"
+        "🎬 Season: {season}\n"
+        "🎬 Episode: {episode}\n"
+        "🎬 Part: {part}\n"
         "🔗 <a href='{link}'>Get Files</a>\n"
         "```\n\n"
         "Now send your caption:",
@@ -586,11 +596,14 @@ async def channel_caption_edit_prompt(client: Client, query: CallbackQuery):
     await query.message.edit_text(
         "✏️ **EDIT CHANNEL CAPTION**\n\n"
         "Send the new caption for this channel.\n\n"
-        "**Example HTML:**\n"
+        "**Example HTML (copy/paste and modify):**\n"
         "```html\n"
         "<b>🎬 {title}</b>\n"
         "<i>Quality: {quality}</i>\n"
         "💾 Size: {filesize}\n"
+        "📁 File: {filename}\n"
+        "📅 Year: {year}\n"
+        "🌐 Language: {language}\n"
         "🔗 <a href='{link}'>Get Files</a>\n"
         "```\n\n"
         "Now send your caption:",
@@ -890,7 +903,6 @@ async def toggle_channel(client: Client, query: CallbackQuery):
         state["selected_channels"].remove(cid)
     else:
         state["selected_channels"].append(cid)
-    # refresh page (use page 0 for simplicity, but better to track current page)
     await show_channel_selection(client, query, 0)
 
 @Client.on_callback_query(filters.regex(r"^sb_dest_all$"))
@@ -990,7 +1002,6 @@ async def start_broadcast(client: Client, query: CallbackQuery):
     if not state:
         await query.answer("Session expired", show_alert=True)
         return
-    # Build release data
     release = {
         "title": state.get("title", "Release"),
         "poster": state.get("poster"),
@@ -999,7 +1010,6 @@ async def start_broadcast(client: Client, query: CallbackQuery):
         "channels": state.get("selected_channels", []),
         "pm": state.get("pm_distribution", False)
     }
-    # Start broadcast task
     logger.info(f"SUPERBROADCAST: Admin {query.from_user.id} started broadcast for {release['title']}")
     asyncio.create_task(execute_broadcast(client, query.from_user.id, release))
     await query.message.edit_text(
@@ -1007,6 +1017,16 @@ async def start_broadcast(client: Client, query: CallbackQuery):
         "Live monitor will update shortly.",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📜 LOGS", callback_data="sb_live_logs")]])
     )
+
+async def send_log_channel(client: Client, text: str):
+    """Send a message to the broadcast log channel (if configured)."""
+    if not BROADCAST_LOG_CHANNEL:
+        return
+    try:
+        await client.send_message(BROADCAST_LOG_CHANNEL, text, parse_mode=enums.ParseMode.HTML)
+        logger.info(f"SUPERBROADCAST: Sent log to channel {BROADCAST_LOG_CHANNEL}")
+    except Exception as e:
+        logger.error(f"SUPERBROADCAST: Failed to send log to channel: {e}")
 
 async def execute_broadcast(client: Client, admin_id: int, release: dict):
     """Background task for broadcast."""
@@ -1058,12 +1078,11 @@ async def execute_broadcast(client: Client, admin_id: int, release: dict):
                     except Exception:
                         failed_users += 1
                 except (UserIsBlocked, InputUserDeactivated):
-                    failed_users += 1  # user inactive
+                    failed_users += 1
                 except Exception:
                     failed_users += 1
 
         elapsed = time.time() - start_time
-        # Save history
         col = await get_history_collection()
         await col.insert_one({
             "title": release["title"],
@@ -1079,7 +1098,6 @@ async def execute_broadcast(client: Client, admin_id: int, release: dict):
             "status": "COMPLETED" if failed_channels == 0 and failed_users == 0 else "PARTIAL"
         })
         logger.info(f"SUPERBROADCAST: Broadcast completed in {elapsed}s. Channels: {completed_channels}/{total_channels}, Users: {sent_users}/{total_users}")
-        # Notify admin
         await client.send_message(admin_id, "✅ **Broadcast completed**\nSee history for details.")
     except Exception as e:
         logger.exception(f"SUPERBROADCAST: Broadcast crashed: {e}")
@@ -1094,7 +1112,6 @@ async def send_release_to_channel(client: Client, channel_id: int, release: dict
         "time": datetime.now().strftime("%H:%M"),
         "link": ""
     }
-    # Use first file to fill metadata
     if release["files"]:
         first_file = release["files"][0]
         data.update(first_file["metadata"])
@@ -1107,10 +1124,7 @@ async def send_release_to_channel(client: Client, channel_id: int, release: dict
         await client.send_photo(channel_id, release["poster"], caption=caption, parse_mode=enums.ParseMode.HTML)
     else:
         await client.send_message(channel_id, caption, parse_mode=enums.ParseMode.HTML)
-    # Send files with buttons
     if release["files"]:
-        # Send first file as media, then others as separate messages or button
-        # For simplicity, send each file with a button
         for file in release["files"]:
             await client.send_cached_media(
                 channel_id,
@@ -1143,7 +1157,6 @@ async def send_release_to_user(client: Client, user_id: int, release: dict):
         await client.send_message(user_id, caption, parse_mode=enums.ParseMode.HTML)
     for file in release["files"]:
         sent = await client.send_cached_media(user_id, file["file_id"])
-        # Schedule auto-delete
         asyncio.create_task(auto_delete_message(client, user_id, sent.id))
 
 # ============================================================
@@ -1225,6 +1238,31 @@ async def show_live_logs(client: Client, query: CallbackQuery):
     await query.answer("Check admin panel -> LOGS")
     await query.message.reply_text("📜 Open /admin -> 📋 LOGS for live logs.")
 
+async def initialize_distribution_channels():
+    """Load distribution channel IDs from environment variable DISTRIBUTION_CHANNELS."""
+    channels_env = environ.get("DISTRIBUTION_CHANNELS", "")
+    if not channels_env:
+        logger.info("SUPERBROADCAST: No DISTRIBUTION_CHANNELS env var set, skipping auto-add.")
+        return
+    channel_ids = [ch.strip() for ch in channels_env.split(",") if ch.strip()]
+    for ch_str in channel_ids:
+        try:
+            cid = int(ch_str)
+        except ValueError:
+            logger.warning(f"SUPERBROADCAST: Invalid channel ID in env: {ch_str}")
+            continue
+        exists = await get_channels_collection().find_one({"channel_id": cid})
+        if not exists:
+            await add_channel(cid)
+            logger.info(f"SUPERBROADCAST: Added channel {cid} from DISTRIBUTION_CHANNELS")
+        else:
+            logger.info(f"SUPERBROADCAST: Channel {cid} already exists, skipping.")
+
+async def __initialize_on_startup():
+    await initialize_distribution_channels()
+
+# This will run when the plugin is loaded (Pyrogram load_plugins)
+asyncio.get_event_loop().create_task(__initialize_on_startup())
 # ============================================================
 # END OF FILE
 # ============================================================
