@@ -1806,10 +1806,23 @@ async def advantage_spell_chok(client, message):
 
 def _extract_request_info(text):
     """Extract user_id and search query from the NoResults message."""
-    user_id_match = re.search(r"Iᴅ : <code>(\d+)</code>", text)
-    search_match = re.search(r"Mᴇꜱꜱᴀɢᴇ : <b>(.*?)</b>", text)
-    if not user_id_match or not search_match:
+    try:
+        lines = text.splitlines()
+        user_id = None
+        search = None
+        for line in lines:
+            if line.startswith("Iᴅ :"):
+                user_id_match = re.search(r"<code>(\d+)</code>", line)
+                if user_id_match:
+                    user_id = int(user_id_match.group(1))
+            elif line.startswith("Mᴇꜱꜱᴀɢᴇ :"):
+                # Strip all HTML tags and get the movie name
+                search = re.sub(r"<.*?>", "", line.split(":", 1)[1].strip())
+        return user_id, search
+    except Exception as e:
+        logger.error(f"Parse error: {e}")
         return None, None
+    
     return int(user_id_match.group(1)), search_match.group(1)
 
 @Client.on_callback_query(filters.regex(r"^avail$"))
