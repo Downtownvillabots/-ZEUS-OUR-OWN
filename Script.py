@@ -529,7 +529,7 @@ This Is An Open-Source Project. You Can Use It Freely, But Selling The Source Co
 • /reset_group - ʀᴇꜱᴇᴛ ʏᴏᴜʀ ꜱᴇᴛᴛɪɴɢꜱ.
 • /details - ᴄʜᴇᴄᴋ ʏᴏᴜʀ ꜱᴇᴛᴛɪɴɢꜱ."""
 
-REQUEST_AVAILABLE = """
+    REQUEST_AVAILABLE = """
 🎉 <b>ʏᴏᴜʀ ʀᴇǫᴜᴇꜱᴛ ɪꜱ ɴᴏᴡ ᴀᴠᴀɪʟᴀʙʟᴇ!</b>
 
 🔍 <b>ᴍᴏᴠɪᴇ:</b> <i>{query}</i>
@@ -537,7 +537,7 @@ REQUEST_AVAILABLE = """
 ✨ <b>ᴄʟɪᴄᴋ ᴛʜᴇ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ɢᴇᴛ ᴛʜᴇ ꜰɪʟᴇ ᴅɪʀᴇᴄᴛʟʏ.</b>
 """
 
-REQUEST_NOT_RELEASED = """
+    REQUEST_NOT_RELEASED = """
 📌 <b>ʏᴏᴜʀ ʀᴇǫᴜᴇꜱᴛ ꜱᴛᴀᴛᴜꜱ</b>
 
 🔍 <b>ᴍᴏᴠɪᴇ:</b> <i>{query}</i>
@@ -547,7 +547,7 @@ REQUEST_NOT_RELEASED = """
 ᴛʜᴀɴᴋ ʏᴏᴜ ꜰᴏʀ ʏᴏᴜʀ ᴘᴀᴛɪᴇɴᴄᴇ! 🙏
 """
 
-REQUEST_UNAVAILABLE = """
+    REQUEST_UNAVAILABLE = """
 ❌ <b>ʏᴏᴜʀ ʀᴇǫᴜᴇꜱᴛ ꜱᴛᴀᴛᴜꜱ</b>
 
 🔍 <b>ᴍᴏᴠɪᴇ:</b> <i>{query}</i>
