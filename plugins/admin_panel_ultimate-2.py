@@ -1606,6 +1606,85 @@ def build_tasks_page():
         current = safe_int(task.get("current"))
         total = safe_int(task.get("total"))
         speed = safe_float(task.get("speed"))
+        status = str(task.get("status", "UNKNOWN")).upper()
+        task_type = str(task.get("type", "WORK")).upper()
+
+        # Status icon and emoji
+        status_icon_char = status_icon(status)
+        status_emoji = {
+            "RUNNING": "🟢 Running",
+            "COMPLETED": "✅ Completed",
+            "FAILED": "❌ Failed",
+            "CANCELLED": "❌ Cancelled",
+            "WAITING": "⏳ Waiting",
+            "PAUSED": "⏸️ Paused",
+        }.get(status, f"⚪ {status}")
+
+        # Task type emoji
+        type_emoji = {
+            "INDEX": "🔎 Indexing",
+            "BACKUP": "💾 Backup",
+            "BROADCAST": "📢 Broadcast",
+            "UPLOAD": "📤 Uploading",
+            "DOWNLOAD": "📥 Downloading",
+            "MOVIE": "🎬 Movie Update",
+            "CLEAN": "🧹 Cleaning",
+            "WORK": "⚙️ Working",
+        }.get(task_type, f"⚙️ {task_type}")
+
+        # Colorful progress bar
+        if total > 0:
+            percent = max(0, min(100, (current / total) * 100))
+            length = 20
+            filled = int(length * percent / 100)
+            if filled >= length:
+                bar = "🟩" * length
+            else:
+                bar = "🟩" * filled + "🟨" + "⬜" * (length - filled - 1)
+            progress_line = f"{bar} <code>{percent:.1f}%</code>\n"
+        else:
+            progress_line = ""
+
+        # ETA
+        eta = "N/A"
+        if speed > 0 and total > 0:
+            remaining = max(0, total - current)
+            eta_seconds = remaining / speed
+            eta = fmt_duration(eta_seconds)
+
+        runtime = fmt_duration(time.time() - safe_float(task.get("started"), time.time()))
+        last_update_age = fmt_duration(time.time() - safe_float(task.get("updated"), time.time()))
+        name = short_text(task.get("name", "Task"), 60)
+
+        text += (
+            f"{status_icon_char} <b>{html_escape(name)}</b>\n"
+            f"🔄 <b>Status:</b> {status_emoji}\n"
+            f"🏷️ <b>Type:</b> {type_emoji}\n"
+            f"{progress_line}"
+            f"📦 <b>{fmt_number(current)}</b> / <b>{fmt_number(total)}</b>\n"
+            f"⚡ Speed: <b>{fmt_float(speed, 2)}/sec</b>\n"
+            f"⏱️ Runtime: <b>{runtime}</b>\n"
+            f"⏳ ETA: <b>{eta}</b>\n"
+        )
+
+        if task.get("message"):
+            text += f"💬 {short_text(task.get('message'), 250)}\n"
+
+        if task.get("owner"):
+            text += f"👤 Owner: <code>{short_text(task.get('owner'), 60)}</code>\n"
+
+        text += (
+            f"🕐 Last Update: <b>{last_update_age}</b> ago\n"
+            f"🆔 <code>{short_text(task_id, 100)}</code>\n\n"
+        )
+
+    return text[:4096]
+
+    
+    for task_id, task in list(LIVE_TASKS.items()):
+        current = safe_int(task.get("current"))
+        total = safe_int(task.get("total"))
+        speed = safe_float(task.get("speed"))
         elapsed = fmt_duration(
             time.time() - safe_float(task.get("started"), time.time())
         )
