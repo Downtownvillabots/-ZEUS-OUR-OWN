@@ -1807,18 +1807,22 @@ async def advantage_spell_chok(client, message):
 def _extract_request_info(text):
     """Extract user_id and search query from the NoResults message."""
     try:
-        lines = text.splitlines()
-        user_id = None
-        search = None
-        for line in lines:
-            if line.startswith("Iᴅ :"):
-                user_id_match = re.search(r"<code>(\d+)</code>", line)
-                if user_id_match:
-                    user_id = int(user_id_match.group(1))
-            elif line.startswith("Mᴇꜱꜱᴀɢᴇ :"):
-                # Strip all HTML tags and get the movie name
-                search = re.sub(r"<.*?>", "", line.split(":", 1)[1].strip())
-        return user_id, search
+        logger.info(f"DEBUG: Parsing text: {text!r}")
+        # Match user_id
+        user_id_match = re.search(r"Iᴅ\s*:\s*<code>(\d+)</code>", text)
+        # Match search query (inside <b> tags)
+        search_match = re.search(r"Mᴇꜱꜱᴀɢᴇ\s*:\s*<b>(.*?)</b>", text)
+        if not search_match:
+            # Fallback: if no <b> tags, get the line after "Mᴇꜱꜱᴀɢᴇ :"
+            search_match = re.search(r"Mᴇꜱꜱᴀɢᴇ\s*:\s*(.*?)(?:\n|$)", text)
+        if user_id_match and search_match:
+            user_id = int(user_id_match.group(1))
+            search = re.sub(r"<.*?>", "", search_match.group(1)).strip()
+            logger.info(f"DEBUG: Parsed user_id={user_id}, search={search!r}")
+            return user_id, search
+        else:
+            logger.error("DEBUG: Could not parse user_id or search from text")
+            return None, None
     except Exception as e:
         logger.error(f"Parse error: {e}")
         return None, None
@@ -1828,6 +1832,7 @@ def _extract_request_info(text):
 @Client.on_callback_query(filters.regex(r"^avail$"))
 async def _mark_available(client, query):
     if query.from_user.id not in ADMINS:
+        logger.info(f"DEBUG: Callback triggered with message text: {query.message.text!r}")
         await query.answer("❌ Only admins can do this.", show_alert=True)
         return
     user_id, search = _extract_request_info(query.message.text)
@@ -1874,6 +1879,7 @@ async def _mark_available(client, query):
 @Client.on_callback_query(filters.regex(r"^nrel$"))
 async def _mark_not_released(client, query):
     if query.from_user.id not in ADMINS:
+        logger.info(f"DEBUG: Callback triggered with message text: {query.message.text!r}")
         await query.answer("❌ Only admins can do this.", show_alert=True)
         return
     user_id, search = _extract_request_info(query.message.text)
@@ -1917,6 +1923,7 @@ async def _mark_not_released(client, query):
 @Client.on_callback_query(filters.regex(r"^unav$"))
 async def _mark_unavailable(client, query):
     if query.from_user.id not in ADMINS:
+        logger.info(f"DEBUG: Callback triggered with message text: {query.message.text!r}")
         await query.answer("❌ Only admins can do this.", show_alert=True)
         return
     user_id, search = _extract_request_info(query.message.text)
