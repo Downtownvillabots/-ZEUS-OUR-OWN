@@ -38,6 +38,7 @@ BUTTONS0 = {}
 BUTTONS1 = {}
 BUTTONS2 = {}
 SPELL_CHECK = {}
+
 @Client.on_message(filters.group & filters.text & filters.incoming & ~filters.regex(r"^/") )
 async def give_filter(client, message):
     if EMOJI_MODE:
@@ -60,7 +61,7 @@ async def give_filter(client, message):
             await save_group_settings(message.chat.id, 'auto_ffilter', True)
             settings = await get_settings(message.chat.id)
             if settings['auto_ffilter']:
-                await auto_filter(client, message) 
+                await auto_filter(client, message)
         except Exception as e:
             logger.exception("Error in auto filter: %s", e)
             pass
@@ -105,6 +106,7 @@ async def pm_text(bot, message):
             )
     except Exception:
         pass
+
 @Client.on_callback_query(filters.regex(r"^reffff"))
 async def refercall(bot, query):
     btn = [[
@@ -121,7 +123,7 @@ async def refercall(bot, query):
             query.message.id,
             InputMediaPhoto("https://graph.org/file/1a2e64aee3d4d10edd930.jpg")
         )
-    except Exception:    
+    except Exception:
         pass
     await query.message.edit_text(
         text=script.REFER_TXT.format(bot.me.username, query.from_user.id),
@@ -361,16 +363,13 @@ async def advantage_spoll_choker(bot, query):
         reqstr1 = query.from_user.id if query.from_user else 0
         reqstr = await bot.get_users(reqstr1)
         if NO_RESULTS_MSG:
-            # Generate a unique token (no database) using _add_request
-            req_token = _add_request(reqstr1, movie, query.message.chat.id)
-
-            # Premium multi‑button keyboard
+            # Premium multi‑button keyboard (no token)
             bin_buttons = InlineKeyboardMarkup([[
-                InlineKeyboardButton("✅ ᴍᴀʀᴋ ᴀᴠᴀɪʟᴀʙʟᴇ ✅", callback_data=f"avail_{req_token}"),
-                InlineKeyboardButton("📌 ɴᴏᴛ ʀᴇʟᴇᴀꜱᴇᴅ 📌", callback_data=f"nrel_{req_token}")
+                InlineKeyboardButton("✅ ᴍᴀʀᴋ ᴀᴠᴀɪʟᴀʙʟᴇ ✅", callback_data="avail"),
+                InlineKeyboardButton("📌 ɴᴏᴛ ʀᴇʟᴇᴀꜱᴇᴅ 📌", callback_data="nrel")
             ],[
-                InlineKeyboardButton("❌ ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ ❌", callback_data=f"unav_{req_token}"),
-                InlineKeyboardButton("🗑️ ᴄᴀɴᴄᴇʟ 🗑️", callback_data=f"cancel_{req_token}")
+                InlineKeyboardButton("❌ ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ ❌", callback_data="unav"),
+                InlineKeyboardButton("🗑️ ᴄᴀɴᴄᴇʟ 🗑️", callback_data="cancel")
             ]])
 
             try:
@@ -425,7 +424,6 @@ async def qualities_cb_handler(client: Client, query: CallbackQuery):
     ])
 
     await query.edit_message_reply_markup(InlineKeyboardMarkup(btn))
-
 
 @Client.on_callback_query(filters.regex(r"^fq#"))
 async def filter_qualities_cb_handler(client: Client, query: CallbackQuery):
@@ -497,32 +495,27 @@ async def filter_qualities_cb_handler(client: Client, query: CallbackQuery):
                            "ʀᴇᴍᴏᴠᴇ ᴀᴅs", url=f"https://t.me/{temp.U_NAME}?start=premium"),
                        InlineKeyboardButton(
                            "Sᴇɴᴅ Aʟʟ", callback_data=f"sendfiles#{key}")
-
                    ])
     if offset != "":
         try:
             if settings['max_btn']:
                 btn.append(
-
                     [InlineKeyboardButton("ᴘᴀɢᴇ", callback_data="pages"), InlineKeyboardButton(
                         text=f"1/{math.ceil(int(total_results)/10)}", callback_data="pages"), InlineKeyboardButton(text="ɴᴇxᴛ ⋟", callback_data=f"next_{req}_{key}_{offset}")]
                 )
             else:
                 btn.append(
-
                     [InlineKeyboardButton("ᴘᴀɢᴇ", callback_data="pages"), InlineKeyboardButton(
                         text=f"1/{math.ceil(int(total_results)/int(MAX_B_TN))}", callback_data="pages"), InlineKeyboardButton(text="ɴᴇxᴛ ⋟", callback_data=f"next_{req}_{key}_{offset}")]
                 )
         except KeyError:
             await save_group_settings(query.message.chat.id, 'max_btn', True)
             btn.append(
-
                 [InlineKeyboardButton("ᴘᴀɢᴇ", callback_data="pages"), InlineKeyboardButton(
                     text=f"1/{math.ceil(int(total_results)/10)}", callback_data="pages"), InlineKeyboardButton(text="ɴᴇxᴛ ⋟", callback_data=f"next_{req}_{key}_{offset}")]
             )
     else:
         btn.append(
-
             [InlineKeyboardButton(
                 text="↭ ɴᴏ ᴍᴏʀᴇ ᴘᴀɢᴇꜱ ᴀᴠᴀɪʟᴀʙʟᴇ ↭", callback_data="pages")]
         )
@@ -581,7 +574,6 @@ async def languages_cb_handler(client: Client, query: CallbackQuery):
 
     await query.edit_message_reply_markup(InlineKeyboardMarkup(btn))
 
-
 @Client.on_callback_query(filters.regex(r"^fl#"))
 async def filter_languages_cb_handler(client: Client, query: CallbackQuery):
     _, lang, req, key = query.data.split("#")
@@ -633,8 +625,7 @@ async def filter_languages_cb_handler(client: Client, query: CallbackQuery):
                            "ʀᴇᴍᴏᴠᴇ ᴀᴅs", url=f"https://t.me/{temp.U_NAME}?start=premium"),
                        InlineKeyboardButton(
                            "Sᴇɴᴅ Aʟʟ", callback_data=f"sendfiles#{key}")
-                   ]
-                   )
+                   ])
     else:
         btn = []
         btn.insert(0,
@@ -725,7 +716,6 @@ async def seasons_cb_handler(client: Client, query: CallbackQuery):
                callback_data=f"next_{req}_{key}_{offset}")])
     await query.edit_message_reply_markup(InlineKeyboardMarkup(btn))
     await query.answer()
-
 
 @Client.on_callback_query(filters.regex(r"^fs#"))
 async def filter_seasons_cb_handler(client: Client, query: CallbackQuery):
@@ -1089,6 +1079,7 @@ async def cb_handler(client: Client, query: CallbackQuery):
                 text=cfg["sup"].format(mention=user.mention, content=req_content),
                 reply_markup=InlineKeyboardMarkup(btn2)
             )
+
     elif query.data.split("#")[0] in ["alalert", "upalert", "unalert", "hnalert", "nralert", "wsalert"]:
         ident, from_user = query.data.split("#")
         alerts = {
@@ -1481,15 +1472,14 @@ async def auto_filter(client, msg, spoll=False):
                 files, offset, total_results = await get_search_results(message.chat.id, search, offset=0, filter=True)
                 settings = await get_settings(message.chat.id)
                 if not files:
-                    # ── Send NoResults to BIN channel with buttons ──
+                    # ── Send NoResults to BIN channel with buttons (no token) ──
                     user_id = message.from_user.id if message.from_user else 0
-                    req_token = _add_request(user_id, search, message.chat.id)
                     bin_buttons = InlineKeyboardMarkup([[
-                        InlineKeyboardButton("✅ ᴍᴀʀᴋ ᴀᴠᴀɪʟᴀʙʟᴇ ✅", callback_data=f"avail_{req_token}"),
-                        InlineKeyboardButton("📌 ɴᴏᴛ ʀᴇʟᴇᴀꜱᴇᴅ 📌", callback_data=f"nrel_{req_token}")
+                        InlineKeyboardButton("✅ ᴍᴀʀᴋ ᴀᴠᴀɪʟᴀʙʟᴇ ✅", callback_data="avail"),
+                        InlineKeyboardButton("📌 ɴᴏᴛ ʀᴇʟᴇᴀꜱᴇᴅ 📌", callback_data="nrel")
                     ],[
-                        InlineKeyboardButton("❌ ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ ❌", callback_data=f"unav_{req_token}"),
-                        InlineKeyboardButton("🗑️ ᴄᴀɴᴄᴇʟ 🗑️", callback_data=f"cancel_{req_token}")
+                        InlineKeyboardButton("❌ ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ ❌", callback_data="unav"),
+                        InlineKeyboardButton("🗑️ ᴄᴀɴᴄᴇʟ 🗑️", callback_data="cancel")
                     ]])
                     try:
                         await client.send_message(
@@ -1766,15 +1756,14 @@ async def advantage_spell_chok(client, message):
         button = [[InlineKeyboardButton(
             "🔍 ᴄʜᴇᴄᴋ sᴘᴇʟʟɪɴɢ ᴏɴ ɢᴏᴏɢʟᴇ 🔍", url=f"https://www.google.com/search?q={google}")]]
 
-        # ── Send to BIN channel with request buttons ──
+        # ── Send to BIN channel with request buttons (no token) ──
         user_id = message.from_user.id if message.from_user else 0
-        req_token = _add_request(user_id, search, message.chat.id)
         bin_buttons = InlineKeyboardMarkup([[
-            InlineKeyboardButton("✅ ᴍᴀʀᴋ ᴀᴠᴀɪʟᴀʙʟᴇ ✅", callback_data=f"avail_{req_token}"),
-            InlineKeyboardButton("📌 ɴᴏᴛ ʀᴇʟᴇᴀꜱᴇᴅ 📌", callback_data=f"nrel_{req_token}")
+            InlineKeyboardButton("✅ ᴍᴀʀᴋ ᴀᴠᴀɪʟᴀʙʟᴇ ✅", callback_data="avail"),
+            InlineKeyboardButton("📌 ɴᴏᴛ ʀᴇʟᴇᴀꜱᴇᴅ 📌", callback_data="nrel")
         ],[
-            InlineKeyboardButton("❌ ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ ❌", callback_data=f"unav_{req_token}"),
-            InlineKeyboardButton("🗑️ ᴄᴀɴᴄᴇʟ 🗑️", callback_data=f"cancel_{req_token}")
+            InlineKeyboardButton("❌ ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ ❌", callback_data="unav"),
+            InlineKeyboardButton("🗑️ ᴄᴀɴᴄᴇʟ 🗑️", callback_data="cancel")
         ]])
 
         try:
@@ -1812,52 +1801,43 @@ async def advantage_spell_chok(client, message):
         pass
 
 # ============================================================
-# REQUEST HANDLER (directly in pmfilter for compatibility)
+# REQUEST HANDLER (parses from message, no token storage)
 # ============================================================
 
-import uuid as _uuid
+def _extract_request_info(text):
+    """Extract user_id and search query from the NoResults message."""
+    user_id_match = re.search(r"Iᴅ : <code>(\d+)</code>", text)
+    search_match = re.search(r"Mᴇꜱꜱᴀɢᴇ : <b>(.*?)</b>", text)
+    if not user_id_match or not search_match:
+        return None, None
+    return int(user_id_match.group(1)), search_match.group(1)
 
-_request_store = {}
-
-def _add_request(user_id, search, chat_id):
-    token = _uuid.uuid4().hex[:8]
-    _request_store[token] = (int(user_id), str(search), int(chat_id))
-    return token
-
-def _get_request(token):
-    return _request_store.get(token)
-
-def _remove_request(token):
-    _request_store.pop(token, None)
-
-@Client.on_callback_query(filters.regex(r"^avail_"))
+@Client.on_callback_query(filters.regex(r"^avail$"))
 async def _mark_available(client, query):
     if query.from_user.id not in ADMINS:
         await query.answer("❌ Only admins can do this.", show_alert=True)
         return
-    token = query.data.split("_", 1)[1]
-    req = _get_request(token)
-    if not req:
-        await query.answer("❌ Request expired or already handled.", show_alert=True)
+    user_id, search = _extract_request_info(query.message.text)
+    if not user_id:
+        await query.answer("❌ Could not parse request.", show_alert=True)
         return
-    user_id, search, chat_id = req
-    _remove_request(token)
+
     try:
         await client.send_message(
             user_id,
             script.REQUEST_AVAILABLE.format(query=search),
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🎬 Get File", callback_data=f"getfile_{token}")
+                InlineKeyboardButton("🎬 Get File", callback_data="getfile")
             ]]),
             parse_mode=enums.ParseMode.HTML
         )
         logger.info(f"✅ Message sent to user {user_id}")
     except UserIsBlocked:
-        logger.warning(f"User {user_id} blocked the bot. Message not sent.")
+        logger.warning(f"User {user_id} blocked the bot.")
         try:
             await client.send_message(
                 SUPPORT_CHAT_ID,
-                f"⚠️ User {user_id} has blocked the bot. Request was: {search}"
+                f"⚠️ User {user_id} blocked the bot. Request was: {search}"
             )
         except Exception:
             pass
@@ -1870,6 +1850,7 @@ async def _mark_available(client, query):
             )
         except Exception:
             pass
+
     await client.send_message(
         LOG_CHANNEL,
         f"✅ <b>Marked as available</b>\n\n🔍 <code>{search}</code>\n👤 <code>{user_id}</code>",
@@ -1877,18 +1858,16 @@ async def _mark_available(client, query):
     )
     await query.answer("✅ Done!", show_alert=False)
 
-@Client.on_callback_query(filters.regex(r"^nrel_"))
+@Client.on_callback_query(filters.regex(r"^nrel$"))
 async def _mark_not_released(client, query):
     if query.from_user.id not in ADMINS:
         await query.answer("❌ Only admins can do this.", show_alert=True)
         return
-    token = query.data.split("_", 1)[1]
-    req = _get_request(token)
-    if not req:
-        await query.answer("❌ Request expired.", show_alert=True)
+    user_id, search = _extract_request_info(query.message.text)
+    if not user_id:
+        await query.answer("❌ Could not parse request.", show_alert=True)
         return
-    user_id, search, chat_id = req
-    _remove_request(token)
+
     try:
         await client.send_message(
             user_id,
@@ -1897,7 +1876,7 @@ async def _mark_not_released(client, query):
         )
         logger.info(f"✅ Message sent to user {user_id}")
     except UserIsBlocked:
-        logger.warning(f"User {user_id} blocked the bot. Message not sent.")
+        logger.warning(f"User {user_id} blocked the bot.")
         try:
             await client.send_message(
                 SUPPORT_CHAT_ID,
@@ -1914,6 +1893,7 @@ async def _mark_not_released(client, query):
             )
         except Exception:
             pass
+
     await client.send_message(
         LOG_CHANNEL,
         f"📌 <b>Not released yet</b>\n\n🔍 <code>{search}</code>\n👤 <code>{user_id}</code>",
@@ -1921,18 +1901,16 @@ async def _mark_not_released(client, query):
     )
     await query.answer("📌 Done!", show_alert=False)
 
-@Client.on_callback_query(filters.regex(r"^unav_"))
+@Client.on_callback_query(filters.regex(r"^unav$"))
 async def _mark_unavailable(client, query):
     if query.from_user.id not in ADMINS:
         await query.answer("❌ Only admins can do this.", show_alert=True)
         return
-    token = query.data.split("_", 1)[1]
-    req = _get_request(token)
-    if not req:
-        await query.answer("❌ Request expired.", show_alert=True)
+    user_id, search = _extract_request_info(query.message.text)
+    if not user_id:
+        await query.answer("❌ Could not parse request.", show_alert=True)
         return
-    user_id, search, chat_id = req
-    _remove_request(token)
+
     try:
         await client.send_message(
             user_id,
@@ -1941,7 +1919,7 @@ async def _mark_unavailable(client, query):
         )
         logger.info(f"✅ Message sent to user {user_id}")
     except UserIsBlocked:
-        logger.warning(f"User {user_id} blocked the bot. Message not sent.")
+        logger.warning(f"User {user_id} blocked the bot.")
         try:
             await client.send_message(
                 SUPPORT_CHAT_ID,
@@ -1958,34 +1936,30 @@ async def _mark_unavailable(client, query):
             )
         except Exception:
             pass
+
     await client.send_message(
         LOG_CHANNEL,
         f"❌ <b>Unavailable</b>\n\n🔍 <code>{search}</code>\n👤 <code>{user_id}</code>",
         parse_mode=enums.ParseMode.HTML
     )
     await query.answer("❌ Done!", show_alert=False)
-    
-@Client.on_callback_query(filters.regex(r"^cancel_"))
+
+@Client.on_callback_query(filters.regex(r"^cancel$"))
 async def _cancel_request(client, query):
     if query.from_user.id not in ADMINS:
         await query.answer("❌ Only admins can do this.", show_alert=True)
         return
-    token = query.data.split("_", 1)[1]
-    req = _get_request(token)
-    if not req:
-        await query.answer("❌ Request expired.", show_alert=True)
-        return
-    _remove_request(token)
     await query.answer("🗑️ Cancelled!", show_alert=False)
 
-@Client.on_callback_query(filters.regex(r"^getfile_"))
+@Client.on_callback_query(filters.regex(r"^getfile$"))
 async def _send_file_to_user(client, query):
-    token = query.data.split("_", 1)[1]
-    req = _get_request(token)
-    if not req:
-        await query.answer("❌ Request expired.", show_alert=True)
-        return
-    user_id, search, chat_id = req
+    # The user clicked "Get File" in their PM after receiving "Available" message.
+    # The search query is in the message text.
+    user_id = query.from_user.id
+    # Remove formatting and extract the movie name
+    text = re.sub(r"<.*?>", "", query.message.text)
+    search = text.split("\n")[1] if "\n" in text else text
+    search = search.replace("🎉", "").replace("Your Request Is Now Available!", "").strip()
     files, offset, total = await get_search_results(user_id, search, max_results=1)
     if not files:
         await query.answer("❌ File not found yet!", show_alert=True)
@@ -1999,11 +1973,5 @@ async def _send_file_to_user(client, query):
             parse_mode=enums.ParseMode.HTML
         )
         await query.answer("✅ File sent!", show_alert=False)
-        _remove_request(token)
     except Exception:
         await query.answer("❌ Failed to send.", show_alert=True)
-
-
-
-
-
