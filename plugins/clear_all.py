@@ -166,13 +166,19 @@ async def clearall_command(client, message):
         await message.reply_text("❌ Admins only.")
         return
     logger.info(f"[CLEAR] Admin {message.from_user.id} used /clearall.")
-    text = "🗑️ **Database Cleanup Menu**\n\nChoose what to clear:"
-    await message.reply_text(
-        text,
-        reply_markup=build_clear_menu(),
-        parse_mode="MARKDOWN"
-    )
-
+    try:
+        text = "🗑️ **Database Cleanup Menu**\n\nChoose what to clear:"
+        menu = build_clear_menu()
+        logger.info(f"DEBUG: Menu built with buttons: {menu}")
+        await message.reply_text(
+            text,
+            reply_markup=menu,
+            parse_mode=enums.ParseMode.MARKDOWN
+        )
+        logger.info("DEBUG: Menu sent successfully")
+    except Exception as e:
+        logger.error(f"Failed to send clearall menu: {e}")
+        await message.reply_text("❌ An error occurred while building the menu.")
 # ============================================================
 # CALLBACKS (initiate)
 # ============================================================
