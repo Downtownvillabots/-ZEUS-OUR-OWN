@@ -97,6 +97,15 @@ from pyrogram.errors import (
     RPCError,
 )
 
+import importlib
+
+# Import admin panel functions dynamically (because filename has a hyphen)
+admin_panel = importlib.import_module("plugins.admin_panel_ultimate-2")
+start_live_task = admin_panel.start_live_task
+update_live_task = admin_panel.update_live_task
+finish_live_task = admin_panel.finish_live_task
+
+
 from database.ia_filterdb import (
     db,
     db2,
@@ -1870,6 +1879,14 @@ async def backup_database(
     ] = (
         f"{source_db}: "
         f"{fmt_int(total)} source files"
+        # Update live task with initial DB progress
+        if STATE.get("live_task_id"):
+            update_live_task(
+                STATE["live_task_id"],
+                current=STATE["current_skipped"],
+                total=total,
+                message=f"Backing up {source_db}",
+            )
     )
 
     logger.info(
@@ -2015,6 +2032,15 @@ async def backup_database(
         STATE[
             "last_activity"
         ] = now_text()
+         # Update live task progress
+        if STATE.get("live_task_id"):
+            update_live_task(
+                STATE["live_task_id"],
+                current=STATE["current_uploaded"] + STATE["current_failed"] + STATE["current_skipped"],
+                total=total,
+                message=f"Uploaded: {STATE['current_uploaded']} | Failed: {STATE['current_failed']} | Skipped: {STATE['current_skipped']} | DB: {source_db}",
+                speed=STATE["speed"],
+            )
 
         if BACKUP_UPLOAD_DELAY > 0:
             await asyncio.sleep(
@@ -2112,7 +2138,22 @@ async def run_backup(
         ] = False
 
         return False
-
+            # Start live task
+    try:
+        total_pending = await total_pending()
+        task_id = f"backup_{int(time.time())}"
+        start_live_task(
+            task_id,
+            name="Media Backup",
+            task_type="BACKUP",
+            total=total_pending,
+            owner="System",
+        )
+        STATE["live_task_id"] = task_id
+    except Exception as e:
+        logger.warning(f"Failed to start live task: {e}")
+        STATE["live_task_id"] = None
+        
     try:
         await ensure_indexes()
 
@@ -2256,6 +2297,18 @@ async def run_backup(
         STATE[
             "finished_at"
         ] = now()
+         # Finish live task
+        if STATE.get("live_task_id"):
+            try:
+                if success:
+                    finish_live_task(STATE["live_task_id"], "COMPLETED")
+                else:
+                    finish_live_task(STATE["live_task_id"], "FAILED")
+            except Exception:
+                pass
+                
+        # Remove the task id after finishing
+        STATE["live_task_id"] = None
 
         STATE[
             "running"
