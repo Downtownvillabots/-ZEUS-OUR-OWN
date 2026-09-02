@@ -247,40 +247,44 @@ async def superbroadcast_command(client: Client, message: Message):
 # MAIN DASHBOARD
 # ============================================================
 async def show_main_dashboard(client: Client, chat_id: int, message_id: int = None):
-    channels = await get_all_channels()
-    users_count = await db.users.count_documents({})
+    try:
+        channels = await get_all_channels()
+        users_count = await db.users.count_documents({})
 
-    text = (
-        "╔══════════════════════════════════════════════════════╗\n"
-        "║              🚀 SUPER BROADCAST CORE                ║\n"
-        "║                 RELEASE DISTRIBUTION                 ║\n"
-        "╚══════════════════════════════════════════════════════╝\n\n"
-        "🟢 SYSTEM: ONLINE\n"
-        "👤 ADMIN: AUTHORIZED\n"
-        f"📡 CHANNELS: {len(channels)}\n"
-        f"👥 USERS: {users_count:,}\n"
-        "📝 CAPTION ENGINE: ACTIVE\n\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "📊 DISTRIBUTION STATUS\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🟢 Connected Channels : {len(channels)}\n"
-        "👥 PM Distribution     : ENABLED\n\n"
-    )
+        text = (
+            "╔══════════════════════════════════════════════════════╗\n"
+            "║              🚀 SUPER BROADCAST CORE                ║\n"
+            "║                 RELEASE DISTRIBUTION                 ║\n"
+            "╚══════════════════════════════════════════════════════╝\n\n"
+            "🟢 SYSTEM: ONLINE\n"
+            "👤 ADMIN: AUTHORIZED\n"
+            f"📡 CHANNELS: {len(channels)}\n"
+            f"👥 USERS: {users_count:,}\n"
+            "📝 CAPTION ENGINE: ACTIVE\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "📊 DISTRIBUTION STATUS\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🟢 Connected Channels : {len(channels)}\n"
+            "👥 PM Distribution     : ENABLED\n\n"
+        )
 
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📤 NEW RELEASE", callback_data="sb_new_release")],
-        [InlineKeyboardButton("📡 CHANNELS", callback_data="sb_channels"),
-         InlineKeyboardButton("👥 USER PM", callback_data="sb_pm_settings")],
-        [InlineKeyboardButton("📝 CAPTIONS", callback_data="sb_captions"),
-         InlineKeyboardButton("⚙️ SETTINGS", callback_data="sb_settings")],
-        [InlineKeyboardButton("📊 HISTORY", callback_data="sb_history"),
-         InlineKeyboardButton("📈 STATISTICS", callback_data="sb_stats")],
-        [InlineKeyboardButton("🔄 REFRESH", callback_data="sb_refresh"),
-         InlineKeyboardButton("❌ CLOSE", callback_data="sb_close")],
-    ])
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📤 NEW RELEASE", callback_data="sb_new_release")],
+            [InlineKeyboardButton("📡 CHANNELS", callback_data="sb_channels"),
+             InlineKeyboardButton("👥 USER PM", callback_data="sb_pm_settings")],
+            [InlineKeyboardButton("📝 CAPTIONS", callback_data="sb_captions"),
+             InlineKeyboardButton("⚙️ SETTINGS", callback_data="sb_settings")],
+            [InlineKeyboardButton("📊 HISTORY", callback_data="sb_history"),
+             InlineKeyboardButton("📈 STATISTICS", callback_data="sb_stats")],
+            [InlineKeyboardButton("🔄 REFRESH", callback_data="sb_refresh"),
+             InlineKeyboardButton("❌ CLOSE", callback_data="sb_close")],
+        ])
 
-    # ✅ ALWAYS SEND A NEW MESSAGE – no editing
-    await client.send_message(chat_id, text, reply_markup=keyboard, parse_mode=enums.ParseMode.HTML)
+        # ✅ Always send a NEW message – no editing
+        sent = await client.send_message(chat_id, text, reply_markup=keyboard, parse_mode=enums.ParseMode.HTML)
+        logger.info(f"SUPERBROADCAST: Dashboard sent to {chat_id} (msg id: {sent.id})")
+    except Exception as e:
+        logger.error(f"SUPERBROADCAST: Failed to send dashboard to {chat_id}: {e}")
 
 # ============================================================
 # CHANNEL MANAGEMENT CALLBACKS
