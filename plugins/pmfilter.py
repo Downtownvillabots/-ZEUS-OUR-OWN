@@ -386,7 +386,7 @@ async def advantage_spoll_choker(bot, query):
                     chat_id=BIN_CHANNEL,
                     text=script.NORSLTS.format(reqstr.id, reqstr.mention, movie),
                     reply_markup=bin_buttons,
-                    parse_mode="HTML"
+                    parse_mode=enums.ParseMode.HTML
                 )
             except Exception as e:
                 logger.error("Error In Spol: %s — Make Sure Bot Admin BIN CHANNEL", e)
@@ -1798,7 +1798,7 @@ async def advantage_spell_chok(client, message):
                 chat_id=BIN_CHANNEL,
                 text=script.NORSLTS.format(user_id, message.from_user.mention if message.from_user else "Unknown", search),
                 reply_markup=bin_buttons,
-                parse_mode="HTML"
+                parse_mode=enums.ParseMode.HTML
             )
             logger.info("Sent NoResults to BIN channel with buttons")
         except Exception as e:
