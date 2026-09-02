@@ -1851,8 +1851,25 @@ async def _mark_available(client, query):
             ]]),
             parse_mode=enums.ParseMode.HTML
         )
-    except Exception:
-        pass
+        logger.info(f"✅ Message sent to user {user_id}")
+    except UserIsBlocked:
+        logger.warning(f"User {user_id} blocked the bot. Message not sent.")
+        try:
+            await client.send_message(
+                SUPPORT_CHAT_ID,
+                f"⚠️ User {user_id} has blocked the bot. Request was: {search}"
+            )
+        except Exception:
+            pass
+    except Exception as e:
+        logger.error(f"Failed to send to user {user_id}: {e}")
+        try:
+            await client.send_message(
+                SUPPORT_CHAT_ID,
+                f"⚠️ Failed to send to user {user_id}. Error: {e}"
+            )
+        except Exception:
+            pass
     await client.send_message(
         LOG_CHANNEL,
         f"✅ <b>Marked as available</b>\n\n🔍 <code>{search}</code>\n👤 <code>{user_id}</code>",
@@ -1878,8 +1895,25 @@ async def _mark_not_released(client, query):
             script.REQUEST_NOT_RELEASED.format(query=search),
             parse_mode=enums.ParseMode.HTML
         )
-    except Exception:
-        pass
+        logger.info(f"✅ Message sent to user {user_id}")
+    except UserIsBlocked:
+        logger.warning(f"User {user_id} blocked the bot. Message not sent.")
+        try:
+            await client.send_message(
+                SUPPORT_CHAT_ID,
+                f"⚠️ User {user_id} blocked the bot. Request was: {search}"
+            )
+        except Exception:
+            pass
+    except Exception as e:
+        logger.error(f"Failed to send to user {user_id}: {e}")
+        try:
+            await client.send_message(
+                SUPPORT_CHAT_ID,
+                f"⚠️ Failed to send to user {user_id}. Error: {e}"
+            )
+        except Exception:
+            pass
     await client.send_message(
         LOG_CHANNEL,
         f"📌 <b>Not released yet</b>\n\n🔍 <code>{search}</code>\n👤 <code>{user_id}</code>",
@@ -1905,15 +1939,32 @@ async def _mark_unavailable(client, query):
             script.REQUEST_UNAVAILABLE.format(query=search),
             parse_mode=enums.ParseMode.HTML
         )
-    except Exception:
-        pass
+        logger.info(f"✅ Message sent to user {user_id}")
+    except UserIsBlocked:
+        logger.warning(f"User {user_id} blocked the bot. Message not sent.")
+        try:
+            await client.send_message(
+                SUPPORT_CHAT_ID,
+                f"⚠️ User {user_id} blocked the bot. Request was: {search}"
+            )
+        except Exception:
+            pass
+    except Exception as e:
+        logger.error(f"Failed to send to user {user_id}: {e}")
+        try:
+            await client.send_message(
+                SUPPORT_CHAT_ID,
+                f"⚠️ Failed to send to user {user_id}. Error: {e}"
+            )
+        except Exception:
+            pass
     await client.send_message(
         LOG_CHANNEL,
         f"❌ <b>Unavailable</b>\n\n🔍 <code>{search}</code>\n👤 <code>{user_id}</code>",
         parse_mode=enums.ParseMode.HTML
     )
     await query.answer("❌ Done!", show_alert=False)
-
+    
 @Client.on_callback_query(filters.regex(r"^cancel_"))
 async def _cancel_request(client, query):
     if query.from_user.id not in ADMINS:
