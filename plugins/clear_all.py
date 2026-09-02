@@ -159,8 +159,12 @@ def build_clear_menu():
 # COMMAND: /clearall
 # ============================================================
 
-@Client.on_message(filters.command("clearall") & filters.user(ADMINS))
+@Client.on_message(filters.command("clearall"))
 async def clearall_command(client, message):
+    logger.info(f"DEBUG: clearall command received from {message.from_user.id}")
+    if message.from_user.id not in ADMINS:
+        await message.reply_text("❌ Admins only.")
+        return
     logger.info(f"[CLEAR] Admin {message.from_user.id} used /clearall.")
     text = "🗑️ **Database Cleanup Menu**\n\nChoose what to clear:"
     await message.reply_text(
