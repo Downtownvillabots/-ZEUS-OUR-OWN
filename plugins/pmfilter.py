@@ -38,6 +38,7 @@ BUTTONS0 = {}
 BUTTONS1 = {}
 BUTTONS2 = {}
 SPELL_CHECK = {}
+PROCESSED_REQUESTS = set()
 
 @Client.on_message(filters.group & filters.text & filters.incoming & ~filters.regex(r"^/") )
 async def give_filter(client, message):
@@ -1829,13 +1830,19 @@ def _extract_request_info(text):
 @Client.on_callback_query(filters.regex(r"^avail$"))
 async def _mark_available(client, query):
     if query.from_user.id not in ADMINS:
-        logger.info(f"DEBUG: Callback triggered with message text: {query.message.text!r}")
         await query.answer("❌ Only admins can do this.", show_alert=True)
+        return
+    msg_id = query.message.id
+    if msg_id in PROCESSED_REQUESTS:
+        await query.answer("✅ Already processed!", show_alert=False)
         return
     user_id, search = _extract_request_info(query.message.text)
     if not user_id:
         await query.answer("❌ Could not parse request.", show_alert=True)
         return
+
+    # Mark as processed
+    PROCESSED_REQUESTS.add(msg_id)
 
     try:
         await client.send_message(
@@ -1871,18 +1878,33 @@ async def _mark_available(client, query):
         f"✅ <b>Marked as available</b>\n\n🔍 <code>{search}</code>\n👤 <code>{user_id}</code>",
         parse_mode=enums.ParseMode.HTML
     )
+
+    # Edit the BIN message to remove buttons (or show processed)
+    try:
+        await query.message.edit_text(
+            "✅ <b>Request processed</b>",
+            parse_mode=enums.ParseMode.HTML
+        )
+    except Exception:
+        pass
+
     await query.answer("✅ Done!", show_alert=False)
 
 @Client.on_callback_query(filters.regex(r"^nrel$"))
 async def _mark_not_released(client, query):
     if query.from_user.id not in ADMINS:
-        logger.info(f"DEBUG: Callback triggered with message text: {query.message.text!r}")
         await query.answer("❌ Only admins can do this.", show_alert=True)
+        return
+    msg_id = query.message.id
+    if msg_id in PROCESSED_REQUESTS:
+        await query.answer("✅ Already processed!", show_alert=False)
         return
     user_id, search = _extract_request_info(query.message.text)
     if not user_id:
         await query.answer("❌ Could not parse request.", show_alert=True)
         return
+
+    PROCESSED_REQUESTS.add(msg_id)
 
     try:
         await client.send_message(
@@ -1915,18 +1937,32 @@ async def _mark_not_released(client, query):
         f"📌 <b>Not released yet</b>\n\n🔍 <code>{search}</code>\n👤 <code>{user_id}</code>",
         parse_mode=enums.ParseMode.HTML
     )
-    await query.answer("📌 Done!", show_alert=False)
 
+    try:
+        await query.message.edit_text(
+            "📌 <b>Request processed</b>",
+            parse_mode=enums.ParseMode.HTML
+        )
+    except Exception:
+        pass
+
+    await query.answer("📌 Done!", show_alert=False)
+    
 @Client.on_callback_query(filters.regex(r"^unav$"))
 async def _mark_unavailable(client, query):
     if query.from_user.id not in ADMINS:
-        logger.info(f"DEBUG: Callback triggered with message text: {query.message.text!r}")
         await query.answer("❌ Only admins can do this.", show_alert=True)
+        return
+    msg_id = query.message.id
+    if msg_id in PROCESSED_REQUESTS:
+        await query.answer("✅ Already processed!", show_alert=False)
         return
     user_id, search = _extract_request_info(query.message.text)
     if not user_id:
         await query.answer("❌ Could not parse request.", show_alert=True)
         return
+
+    PROCESSED_REQUESTS.add(msg_id)
 
     try:
         await client.send_message(
@@ -1959,6 +1995,15 @@ async def _mark_unavailable(client, query):
         f"❌ <b>Unavailable</b>\n\n🔍 <code>{search}</code>\n👤 <code>{user_id}</code>",
         parse_mode=enums.ParseMode.HTML
     )
+
+    try:
+        await query.message.edit_text(
+            "❌ <b>Request processed</b>",
+            parse_mode=enums.ParseMode.HTML
+        )
+    except Exception:
+        pass
+
     await query.answer("❌ Done!", show_alert=False)
 
 @Client.on_callback_query(filters.regex(r"^cancel$"))
@@ -1966,6 +2011,20 @@ async def _cancel_request(client, query):
     if query.from_user.id not in ADMINS:
         await query.answer("❌ Only admins can do this.", show_alert=True)
         return
+    msg_id = query.message.id
+    if msg_id in PROCESSED_REQUESTS:
+        await query.answer("✅ Already processed!", show_alert=False)
+        return
+    PROCESSED_REQUESTS.add(msg_id)
+
+    try:
+        await query.message.edit_text(
+            "🗑️ <b>Request cancelled</b>",
+            parse_mode=enums.ParseMode.HTML
+        )
+    except Exception:
+        pass
+
     await query.answer("🗑️ Cancelled!", show_alert=False)
 
 @Client.on_callback_query(filters.regex(r"^getfile$"))
