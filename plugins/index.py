@@ -172,7 +172,6 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                 name=f"Indexing {chat}",
                 task_type="INDEX",
                 total=total_messages,
-                owner=owner,
             )
 
             await msg.edit(
