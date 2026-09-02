@@ -251,10 +251,10 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                     task_id,
                     current=progress,
                     total=total_fetch,
-                    message=f"Saved: {total_files} | Skip: {duplicate} | Errors: {errors}",
+                    message=f"Batch {batch+1}/{batches} | Saved: {total_files} | Skip: {duplicate} | Deleted: {deleted} | Non-Media: {no_media + unsupported} | Errors: {errors}",
                     speed=progress / elapsed if elapsed > 0 else 0,
                 )
-
+                    
                 await msg.edit(
                     f"📊 Indexing Progress 📦 Batch {batch + 1}/{batches}\n"
                     f"{progress_bar} <code>{percentage:.1f}%</code>\n\n"
