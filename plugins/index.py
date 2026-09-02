@@ -10,6 +10,13 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils import temp, get_readable_time
 from math import ceil
 
+# Import live task functions from admin panel (safe, no circular import)
+from plugins.admin_panel_ultimate-2 import (
+    start_live_task,
+    update_live_task,
+    finish_live_task,
+)
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -139,6 +146,10 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
     BATCH_SIZE = 200
     start_time = time.time()
 
+    # Create a unique task ID
+    task_id = f"index_{chat}_{int(time.time())}"
+    owner = str(msg.from_user.id if msg.from_user else "System")
+
     async with lock:
         try:
             current = temp.CURRENT
@@ -153,6 +164,16 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                 return
             batches = ceil(total_messages / BATCH_SIZE)
             batch_times = []
+
+            # Start live task
+            start_live_task(
+                task_id,
+                name=f"Indexing {chat}",
+                task_type="INDEX",
+                total=total_messages,
+                owner=owner,
+            )
+
             await msg.edit(
                 f"📊 Indexing Starting......\n"
                 f"💬 Total Messages: <code>{total_messages}</code>\n"
@@ -207,10 +228,15 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                         ok, code = result
                         if ok:
                             total_files += 1
+                            # Log saved filename (will appear in admin logs)
+                            # We need the filename – but we don't have it here directly. We'll log generic.
+                            logger.info(f"✅ Saved file (total: {total_files})")
                         elif code == 0:
                             duplicate += 1
+                            # We can't get filename here easily; but save_file already logs it.
                         elif code == 2:
                             errors += 1
+
                 batch_time = time.time() - batch_start
                 batch_times.append(batch_time)
                 elapsed = time.time() - start_time
@@ -219,6 +245,16 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                 avg_batch_time = sum(batch_times) / len(batch_times) if batch_times else 1
                 eta = (total_fetch - progress) / BATCH_SIZE * avg_batch_time
                 progress_bar = get_progress_bar(int(percentage))
+
+                # Update live task
+                update_live_task(
+                    task_id,
+                    current=progress,
+                    total=total_fetch,
+                    message=f"Saved: {total_files} | Skip: {duplicate} | Errors: {errors}",
+                    speed=progress / elapsed if elapsed > 0 else 0,
+                )
+
                 await msg.edit(
                     f"📊 Indexing Progress 📦 Batch {batch + 1}/{batches}\n"
                     f"{progress_bar} <code>{percentage:.1f}%</code>\n\n"
@@ -235,6 +271,10 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Cancel', callback_data='index_cancel')]])
                 )
             elapsed = time.time() - start_time
+
+            # Finish live task
+            finish_live_task(task_id, "COMPLETED")
+
             await msg.edit(
                 f"✅ Indexing Completed!\n"
                 f"Total Messages: <code>{total_messages}</code>\n"
@@ -249,8 +289,9 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Close', callback_data='close_data')]])
             )
         except Exception as e:
+            # Mark task as failed
+            finish_live_task(task_id, "FAILED")
             await msg.edit(
                 f"❌ Error: <code>{e}</code>",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Close', callback_data='close_data')]])
             )
-
