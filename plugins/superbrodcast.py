@@ -19,7 +19,7 @@ from pyrogram.errors import (
 )
 
 from info import ADMINS, DELETE_TIME, LOG_CHANNEL
-from database.users_chats_db import db
+from database.users_chats_db import db as user_db
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -49,10 +49,10 @@ def is_admin(user_id: int) -> bool:
 # DB HELPERS
 # ============================================================
 async def get_channels_collection():
-    return db[COLLECTION_CHANNELS]
+    return user_db.db[COLLECTION_CHANNELS]
 
 async def get_history_collection():
-    return db[COLLECTION_HISTORY]
+    return user_db.db[COLLECTION_HISTORY]
 
 # ============================================================
 # CAPTION STORAGE
@@ -249,7 +249,7 @@ async def superbroadcast_command(client: Client, message: Message):
 async def show_main_dashboard(client: Client, chat_id: int, message_id: int = None):
     try:
         channels = await get_all_channels()
-        users_count = await db.users.count_documents({})
+        users_count = await user_db.col.count_documents({})
 
         text = (
             "╔══════════════════════════════════════════════════════╗\n"
@@ -1063,7 +1063,7 @@ async def execute_broadcast(client: Client, admin_id: int, release: dict):
 
         # Send to users
         if release["pm"]:
-            users_cursor = db.users.find({})
+            users_cursor = user_db.col.find({})
             async for user in users_cursor:
                 user_id = user.get("user_id")
                 if not user_id:
