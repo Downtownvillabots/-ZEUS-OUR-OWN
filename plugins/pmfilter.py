@@ -1805,19 +1805,16 @@ async def advantage_spell_chok(client, message):
 # ============================================================
 
 def _extract_request_info(text):
-    """Extract user_id and search query from the NoResults message."""
+    """Extract user_id and search query from the NoResults message (plain text)."""
     try:
         logger.info(f"DEBUG: Parsing text: {text!r}")
-        # Match user_id
-        user_id_match = re.search(r"Iᴅ\s*:\s*<code>(\d+)</code>", text)
-        # Match search query (inside <b> tags)
-        search_match = re.search(r"Mᴇꜱꜱᴀɢᴇ\s*:\s*<b>(.*?)</b>", text)
-        if not search_match:
-            # Fallback: if no <b> tags, get the line after "Mᴇꜱꜱᴀɢᴇ :"
-            search_match = re.search(r"Mᴇꜱꜱᴀɢᴇ\s*:\s*(.*?)(?:\n|$)", text)
+        # Match user_id after "Iᴅ : " (no <code>)
+        user_id_match = re.search(r"Iᴅ\s*:\s*(\d+)", text)
+        # Match search query after "Mᴇꜱꜱᴀɢᴇ : " (until newline)
+        search_match = re.search(r"Mᴇꜱꜱᴀɢᴇ\s*:\s*(.*?)(?:\n|$)", text)
         if user_id_match and search_match:
             user_id = int(user_id_match.group(1))
-            search = re.sub(r"<.*?>", "", search_match.group(1)).strip()
+            search = search_match.group(1).strip()
             logger.info(f"DEBUG: Parsed user_id={user_id}, search={search!r}")
             return user_id, search
         else:
