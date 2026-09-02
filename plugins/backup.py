@@ -2034,14 +2034,14 @@ async def run_backup(
         return False
 
     # Start live task
-    try:
-        total_pending = await total_pending()
+        try:
+        pending_count = await total_pending()   # renamed to avoid conflict
         task_id = f"backup_{int(time.time())}"
         start_live_task(
             task_id,
             name="Media Backup",
             task_type="BACKUP",
-            total=total_pending,
+            total=pending_count,
             owner="System",
         )
         STATE["live_task_id"] = task_id
