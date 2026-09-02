@@ -2034,7 +2034,7 @@ async def run_backup(
         return False
 
     # Start live task
-        try:
+    try:
         pending_count = await total_pending()   # renamed to avoid conflict
         task_id = f"backup_{int(time.time())}"
         start_live_task(
