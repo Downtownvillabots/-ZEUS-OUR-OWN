@@ -1,5 +1,5 @@
 # ============================================================
-# DOWNTOWN VILLA — ULTIMATE BACKUP PLUGIN (VERSION 2.0)
+# DOWNTOWN VILLA — ULTIMATE BACKUP PLUGIN (DYNAMIC DBs)
 # ============================================================
 #
 # ONE ADMIN COMMAND:
@@ -8,15 +8,14 @@
 #
 # FEATURES
 # ------------------------------------------------------------
-# • Media -> Media2 -> Media3 ordered backup
-# • Resumes from the exact persistent database state
-# • Live task tracking (shown in admin panel's 🚀 TASKS page)
+# • Automatically detects all media databases (DBS/DB_LABELS)
+# • Shows each database by its cluster name (e.g., DATA-BASE-02)
+# • Auto‑includes new databases without code changes
+# • Live task tracking (shows in admin panel's 🚀 TASKS page)
 # • Colorful emoji progress bar
-# • New files are detected automatically
-# • Pause / Resume / Stop / Retry Failed buttons
-# • Crash-window reconciliation
-# • Metadata stored in separate MongoDB collection (low storage)
-# • Original file metadata used as caption
+# • Resumes from last uploaded file (persistent state)
+# • Pause / Resume / Stop / Retry Failed
+# • Uses original file metadata as caption
 # • Shows current database and file
 # • FloodWait handling
 # • Exponential retry delay
@@ -61,9 +60,9 @@ from pyrogram.errors import (
 )
 
 from database.ia_filterdb import (
-    db,
-    db2,
-    db3,
+    DBS,          # list of media databases
+    COLLECTIONS,  # list of media collections
+    DB_LABELS,    # human-readable cluster labels (e.g., "DATA-BASE-02")
 )
 
 try:
@@ -89,7 +88,6 @@ finish_live_task = admin_panel.finish_live_task
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
 
 # ============================================================
 # CONFIGURATION
@@ -175,7 +173,6 @@ BACKUP_TOKEN_PREFIX = os.getenv(
     "DTV-BACKUP",
 )
 
-
 # ============================================================
 # ADMIN PARSING
 # ============================================================
@@ -213,9 +210,7 @@ def _build_admin_set():
 
     return result
 
-
 ADMIN_IDS = _build_admin_set()
-
 
 def is_admin(user_id):
     try:
@@ -238,40 +233,35 @@ def get_backup_channel_id():
     except Exception:
         return None
 
-
 def backup_configured():
     return get_backup_channel_id() is not None
 
-
 # ============================================================
-# SOURCE DATABASE ORDER
+# DYNAMIC SOURCE DATABASES
 # ============================================================
 
-SOURCE_DATABASES = [
-    (
-        "Media",
-        db,
-        1,
-    ),
-    (
-        "Media2",
-        db2,
-        2,
-    ),
-    (
-        "Media3",
-        db3,
-        3,
-    ),
-]
+# Build source databases dynamically from the media pool
+SOURCE_DATABASES = []
+for index, (database, label) in enumerate(zip(DBS, DB_LABELS), start=1):
+    SOURCE_DATABASES.append(
+        (
+            label,
+            database,
+            index,
+        )
+    )
 
+# Fallback if DBS empty (shouldn't happen)
+if not SOURCE_DATABASES:
+    SOURCE_DATABASES = [
+        ("DATA-BASE-01", None, 1),
+    ]
 
 def enabled_source_databases():
+    # If MULTIPLE_DB is False, use only first DB, else all
     if MULTIPLE_DB:
         return SOURCE_DATABASES
-
     return SOURCE_DATABASES[:1]
-
 
 def source_collection(database):
     if database is None:
@@ -281,30 +271,26 @@ def source_collection(database):
         COLLECTION_NAME
     ]
 
-
 # ============================================================
 # STATE COLLECTION
 # ============================================================
 
 def state_collection():
-    if db is None:
-        return None
-
-    return db[
-        BACKUP_STATE_COLLECTION
-    ]
-
+    if DBS and DBS[0] is not None:
+        return DBS[0][
+            BACKUP_STATE_COLLECTION
+        ]
+    return None
 
 def run_collection():
-    if db is None:
-        return None
-
-    return db[
-        BACKUP_RUN_COLLECTION
-    ]
+    if DBS and DBS[0] is not None:
+        return DBS[0][
+            BACKUP_RUN_COLLECTION
+        ]
+    return None
 
 # ============================================================
-# RUNTIME
+# RUNTIME STATE
 # ============================================================
 
 STATE = {
@@ -353,7 +339,6 @@ STATE = {
     "live_task_id": None,   # For admin panel TASKS page
 }
 
-
 WORKER_TASK = None
 WATCHER_TASK = None
 
@@ -362,7 +347,6 @@ PANEL_LOCK = asyncio.Lock()
 
 ACTIVE_PANELS = {}
 
-
 # ============================================================
 # HELPERS
 # ============================================================
@@ -370,12 +354,10 @@ ACTIVE_PANELS = {}
 def now():
     return datetime.utcnow()
 
-
 def now_text():
     return now().strftime(
         "%d %b %Y • %H:%M:%S UTC"
     )
-
 
 def fmt_int(value):
     try:
@@ -383,13 +365,11 @@ def fmt_int(value):
     except Exception:
         return "0"
 
-
 def fmt_float(value, places=2):
     try:
         return f"{float(value):.{places}f}"
     except Exception:
         return f"{0:.{places}f}"
-
 
 def fmt_bytes(value):
     try:
@@ -423,7 +403,6 @@ def fmt_bytes(value):
         f"{value:.2f} "
         f"{units[index]}"
     )
-
 
 def fmt_duration(seconds):
     if seconds is None:
@@ -476,7 +455,6 @@ def fmt_duration(seconds):
 
     return " ".join(parts)
 
-
 def html_escape(value):
     text = str(
         value
@@ -491,7 +469,6 @@ def html_escape(value):
         .replace(">", "&gt;")
     )
 
-
 def short(value, length=90):
     text = str(
         value
@@ -503,7 +480,6 @@ def short(value, length=90):
         return text
 
     return text[: length - 3] + "..."
-
 
 def progress_bar(
     current,
@@ -548,7 +524,6 @@ def progress_bar(
 
     return f"{bar} {percent:.1f}%"
 
-
 def status_icon(status):
     status = str(
         status or ""
@@ -583,6 +558,10 @@ def status_icon(status):
 
     return "⚪"
 
+# ============================================================
+# SOURCE FILE HELPERS
+# ============================================================
+
 def source_file_id(document):
     value = document.get(
         "_id"
@@ -598,7 +577,6 @@ def source_file_id(document):
 
     return str(value)
 
-
 def source_file_name(document):
     value = document.get(
         "file_name"
@@ -608,7 +586,6 @@ def source_file_name(document):
         return str(value)
 
     return "Unknown File"
-
 
 def source_file_size(document):
     try:
@@ -622,7 +599,6 @@ def source_file_size(document):
     except Exception:
         return 0
 
-
 def source_caption(document):
     value = document.get(
         "caption"
@@ -635,7 +611,6 @@ def source_caption(document):
         document
     )
 
-
 def backup_key(
     source_db,
     file_id,
@@ -644,7 +619,6 @@ def backup_key(
         f"{source_db}:"
         f"{file_id}"
     )
-
 
 def backup_token(
     source_db,
@@ -755,7 +729,6 @@ async def ensure_indexes():
         )
         return False
 
-
 # ============================================================
 # STATE STORAGE
 # ============================================================
@@ -782,7 +755,6 @@ async def get_state(
         )
         return None
 
-
 async def get_status(
     source_db,
     file_id,
@@ -801,7 +773,6 @@ async def get_status(
             "PENDING",
         )
     ).upper()
-
 
 async def set_state(
     source_db,
@@ -884,8 +855,6 @@ async def mark_uploading(
     source_db,
     document,
 ):
-    collection = state_collection()
-
     file_id = source_file_id(
         document
     )
@@ -913,7 +882,6 @@ async def mark_uploading(
         attempts=attempts + 1,
     )
 
-
 async def mark_uploaded(
     source_db,
     document,
@@ -925,7 +893,6 @@ async def mark_uploaded(
         "UPLOADED",
         message_id=message_id,
     )
-
 
 async def mark_failed(
     source_db,
@@ -958,7 +925,6 @@ async def mark_failed(
         attempts=attempts,
     )
 
-
 async def reset_failed():
     collection = state_collection()
 
@@ -978,7 +944,6 @@ async def reset_failed():
     )
 
     return result.modified_count
-
 
 # ============================================================
 # RUN HISTORY
@@ -1002,7 +967,6 @@ async def create_run():
     )
 
     return result.inserted_id
-
 
 async def finish_run(
     status,
@@ -1039,7 +1003,6 @@ async def finish_run(
             }
         },
     )
-
 
 async def get_history(
     limit=12,
@@ -1096,7 +1059,6 @@ async def count_state(
     except Exception:
         return 0
 
-
 async def source_count(
     source_db,
     database,
@@ -1114,7 +1076,6 @@ async def source_count(
         )
     except Exception:
         return 0
-
 
 async def database_snapshot():
     snapshot = {}
@@ -1163,7 +1124,6 @@ async def database_snapshot():
 
     return snapshot
 
-
 async def total_pending():
     snapshot = await database_snapshot()
 
@@ -1174,17 +1134,6 @@ async def total_pending():
 
 # ============================================================
 # PERSISTENT RESUME SCANNER
-# ============================================================
-#
-# This is deliberately state-based rather than "skip the first N".
-#
-# A numeric offset is unsafe because new documents can be inserted
-# while the backup is running.
-#
-# The durable checkpoint is:
-#
-#     source_db + file_id + UPLOADED
-#
 # ============================================================
 
 async def pending_documents(
@@ -1233,7 +1182,6 @@ async def pending_documents(
             state,
         ):
             yield item
-
 
 async def pending_batch(
     documents,
@@ -1321,7 +1269,6 @@ async def uploading_records(
         length=int(limit)
     )
 
-
 async def find_source_document(
     source_db,
     file_id,
@@ -1363,7 +1310,6 @@ async def find_source_document(
 
     return None
 
-
 def message_has_token(
     message,
     token,
@@ -1389,7 +1335,6 @@ def message_has_token(
     )
 
     return token in combined
-
 
 async def reconcile_one(
     app,
@@ -1474,7 +1419,6 @@ async def reconcile_one(
 
     return False
 
-
 async def reconcile_interrupted():
     if not backup_configured():
         return 0
@@ -1542,7 +1486,6 @@ def make_caption(
         f"📚 <b>DATABASE:</b> {source_db}\n"
         f"🔐 <code>{token}</code>"
     )
-
 
 # ============================================================
 # TELEGRAM UPLOAD
@@ -2103,7 +2046,7 @@ async def run_backup(
         )
         STATE["live_task_id"] = task_id
     except Exception as e:
-        logger.warning(f"Failed to start live task: {e}")
+        logger.error(f"Failed to start live task: {e}")
         STATE["live_task_id"] = None
 
     success = False
@@ -2134,7 +2077,7 @@ async def run_backup(
         )
 
         logger.info(
-            "[BACKUP] ORDER: Media -> Media2 -> Media3"
+            "[BACKUP] ORDER: AUTO-DETECTED MEDIA DATABASES"
         )
 
         logger.info(
@@ -2143,7 +2086,7 @@ async def run_backup(
 
         success = True
 
-        # MEDIA -> MEDIA2 -> MEDIA3
+        # LOOP THROUGH ALL MEDIA DATABASES
         for (
             source_db,
             database,
@@ -2187,7 +2130,7 @@ async def run_backup(
             STATE[
                 "message"
             ] = (
-                "Media → Media2 → Media3 completed"
+                "All media databases completed"
             )
 
             await finish_run(
@@ -2343,7 +2286,6 @@ async def watcher_loop(
                 BACKUP_WATCH_INTERVAL
             )
 
-
 def ensure_watcher(
     app,
 ):
@@ -2358,7 +2300,6 @@ def ensure_watcher(
                 app
             )
         )
-
 
 # ============================================================
 # CONTROL
@@ -2384,7 +2325,6 @@ async def start_backup(
 
     return False
 
-
 async def retry_failed_files(
     app,
 ):
@@ -2405,7 +2345,6 @@ async def retry_failed_files(
 
     return False
 
-
 def pause_backup():
     if STATE[
         "running"
@@ -2421,7 +2360,6 @@ def pause_backup():
         return True
 
     return False
-
 
 def resume_backup():
     if STATE[
@@ -2442,7 +2380,6 @@ def resume_backup():
         return True
 
     return False
-
 
 def stop_backup():
     if STATE[
@@ -2517,7 +2454,6 @@ async def live_snapshot():
         "uploading": uploading,
         "state": dict(STATE),
     }
-
 
 # ============================================================
 # STATUS PAGE (with colorful progress bar)
@@ -2614,36 +2550,18 @@ async def build_status_page():
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     )
 
-    for name in (
-        "Media",
-        "Media2",
-        "Media3",
-    ):
-        item = snapshot[
-            "databases"
-        ].get(
-            name
-        )
-
-        if not item:
+    for name, item in snapshot["databases"].items():
+        # Only show databases with source files or non-zero counts
+        if item["total"] <= 0 and item["uploaded"] <= 0 and item["failed"] <= 0:
             continue
 
         db_percent = (
-            item[
-                "uploaded"
-            ]
-            / item[
-                "total"
-            ]
-            * 100
-            if item[
-                "total"
-            ]
-            else 100
+            item["uploaded"] / item["total"] * 100
+            if item["total"] else 100
         )
 
         text += (
-            f"📦 <b>{name}</b>\n"
+            f"📦 <b>{html_escape(name)}</b>\n"
             f"   Source    : <b>{fmt_int(item['total'])}</b>\n"
             f"   Uploaded  : <b>{fmt_int(item['uploaded'])}</b>\n"
             f"   Pending   : <b>{fmt_int(item['pending'])}</b>\n"
@@ -2700,7 +2618,6 @@ async def build_status_page():
 
     return text[:4000]
 
-
 # ============================================================
 # FAILURE PAGE
 # ============================================================
@@ -2749,7 +2666,6 @@ async def build_failure_page():
         )
 
     return text[:4000]
-
 
 # ============================================================
 # HISTORY PAGE
@@ -2816,7 +2732,6 @@ async def build_history_page():
 
     return text[:4000]
 
-
 # ============================================================
 # BUTTONS
 # ============================================================
@@ -2875,7 +2790,6 @@ def backup_keyboard():
         ],
     ])
 
-
 # ============================================================
 # SAFE EDIT
 # ============================================================
@@ -2912,7 +2826,6 @@ async def safe_edit(
         )
 
     return False
-
 
 # ============================================================
 # LIVE PANEL UPDATER
@@ -2977,7 +2890,6 @@ async def live_panel_loop(
                 3
             )
 
-
 def stop_panel(
     message_id,
 ):
@@ -2999,7 +2911,6 @@ def stop_panel(
                 task.cancel()
             except Exception:
                 pass
-
 
 def open_panel(
     message,
@@ -3029,7 +2940,6 @@ def open_panel(
     }
 
     return task
-
 
 # ============================================================
 # /backup — THE ONLY COMMAND
@@ -3073,7 +2983,6 @@ async def backup_command(
         sent,
         "live",
     )
-
 
 # ============================================================
 # CALLBACKS
@@ -3269,7 +3178,6 @@ async def backup_callback(
         except Exception:
             pass
 
-
 # ============================================================
 # AUTO START
 # ============================================================
@@ -3279,10 +3187,7 @@ async def initialize_backup(
 ):
     """
     Optional integration hook.
-
     The watcher starts even if BACKUP_AUTO_START is false.
-    That means newly indexed files can still be detected.
-
     If BACKUP_AUTO_START=true, an initial resumable pass starts.
     """
 
