@@ -279,10 +279,8 @@ async def show_main_dashboard(client: Client, chat_id: int, message_id: int = No
          InlineKeyboardButton("❌ CLOSE", callback_data="sb_close")],
     ])
 
-    if message_id:
-        await client.edit_message_text(chat_id, message_id, text, reply_markup=keyboard, parse_mode=enums.ParseMode.HTML)
-    else:
-        await client.send_message(chat_id, text, reply_markup=keyboard, parse_mode=enums.ParseMode.HTML)
+    # ✅ ALWAYS SEND A NEW MESSAGE – no editing
+    await client.send_message(chat_id, text, reply_markup=keyboard, parse_mode=enums.ParseMode.HTML)
 
 # ============================================================
 # CHANNEL MANAGEMENT CALLBACKS
