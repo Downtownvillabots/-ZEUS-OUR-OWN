@@ -169,11 +169,11 @@ async def clearall_command(client, message):
     try:
         text = "🗑️ **Database Cleanup Menu**\n\nChoose what to clear:"
         menu = build_clear_menu()
-        logger.info(f"DEBUG: Menu built with buttons: {menu}")
+        logger.info("DEBUG: Menu built successfully")
         await message.reply_text(
             text,
             reply_markup=menu,
-            parse_mode=enums.ParseMode.MARKDOWN
+            parse_mode="MARKDOWN"
         )
         logger.info("DEBUG: Menu sent successfully")
     except Exception as e:
