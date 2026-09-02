@@ -1781,6 +1781,29 @@ async def advantage_spell_chok(client, message):
         google = quote_plus(search)
         button = [[InlineKeyboardButton(
             "🔍 ᴄʜᴇᴄᴋ sᴘᴇʟʟɪɴɢ ᴏɴ ɢᴏᴏɢʟᴇ 🔍", url=f"https://www.google.com/search?q={google}")]]
+
+        # ── Send to BIN channel with request buttons ──
+        user_id = message.from_user.id if message.from_user else 0
+        req_token = add_request(user_id, search, message.chat.id)
+        bin_buttons = InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ ᴍᴀʀᴋ ᴀᴠᴀɪʟᴀʙʟᴇ ✅", callback_data=f"avail_{req_token}"),
+            InlineKeyboardButton("📌 ɴᴏᴛ ʀᴇʟᴇᴀꜱᴇᴅ 📌", callback_data=f"nrel_{req_token}")
+        ],[
+            InlineKeyboardButton("❌ ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ ❌", callback_data=f"unav_{req_token}"),
+            InlineKeyboardButton("🗑️ ᴄᴀɴᴄᴇʟ 🗑️", callback_data=f"cancel_{req_token}")
+        ]])
+
+        try:
+            await client.send_message(
+                chat_id=BIN_CHANNEL,
+                text=script.NORSLTS.format(user_id, message.from_user.mention if message.from_user else "Unknown", search),
+                reply_markup=bin_buttons,
+                parse_mode="HTML"
+            )
+            logger.info("Sent NoResults to BIN channel with buttons")
+        except Exception as e:
+            logger.error(f"Failed to send to BIN: {e}")
+
         k = await message.reply_text(text=script.I_CUDNT.format(search), reply_markup=InlineKeyboardMarkup(button))
         await asyncio.sleep(60)
         await k.delete()
@@ -1789,18 +1812,4 @@ async def advantage_spell_chok(client, message):
         except Exception:
             pass
         return
-    user = message.from_user.id if message.from_user else 0
-    buttons = [
-        [InlineKeyboardButton(text=movie.title, callback_data=f"spol#{movie.imdb_id}#{user}")
-         ] for movie in movies]
-
-    buttons.append([InlineKeyboardButton(
-        text="🚫 ᴄʟᴏsᴇ 🚫", callback_data='close_data')])
-    d = await message.reply_text(text=script.CUDNT_FND.format(message.from_user.mention), reply_markup=InlineKeyboardMarkup(buttons), reply_to_message_id=message.id)
-    await asyncio.sleep(60)
-    await d.delete()
-    try:
-        await message.delete()
-    except Exception:
-        pass
     
