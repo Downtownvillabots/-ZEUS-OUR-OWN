@@ -2294,10 +2294,9 @@ async def run_backup(
         return False
 
     finally:
-        STATE[
-            "finished_at"
-        ] = now()
-         # Finish live task
+        STATE["finished_at"] = now()
+
+        # Finish live task
         if STATE.get("live_task_id"):
             try:
                 if success:
@@ -2306,17 +2305,10 @@ async def run_backup(
                     finish_live_task(STATE["live_task_id"], "FAILED")
             except Exception:
                 pass
-                
         # Remove the task id after finishing
         STATE["live_task_id"] = None
 
-        STATE[
-            "running"
-        ] = False
-
-        STATE[
-            "paused"
-        ] = False
+        STATE["running"] = False
 
         STATE[
             "stop_requested"
