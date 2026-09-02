@@ -2045,6 +2045,7 @@ async def run_backup(
             
         )
         STATE["live_task_id"] = task_id
+        logger.info(f"Live task started: {task_id}")
     except Exception as e:
         logger.error(f"Failed to start live task: {e}")
         STATE["live_task_id"] = None
