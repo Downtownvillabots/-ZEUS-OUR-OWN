@@ -1,6 +1,6 @@
 import logging
 import asyncio
-from pyrogram import Client, filters
+from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from info import ADMINS, MULTIPLE_DB
 from database.ia_filterdb import DBS, COLLECTIONS, DB_LABELS
@@ -43,7 +43,6 @@ async def clear_media_collection(client, query, collection, label):
         )
 
         while True:
-            # Fetch a batch of _ids
             cursor = collection.find({}, {"_id": 1}).batch_size(batch_size).limit(batch_size)
             ids = []
             async for doc in cursor:
@@ -58,7 +57,7 @@ async def clear_media_collection(client, query, collection, label):
                 f"<code>{percent}</code>\n"
                 f"Deleted: {deleted} / {total}"
             )
-            await asyncio.sleep(0.5)  # small delay to avoid Telegram flood
+            await asyncio.sleep(0.5)
 
         logger.info(f"[CLEAR] Deleted {deleted} files from {label}.")
         await query.message.edit_text(f"✅ Cleared {label}.\nTotal files removed: **{deleted}**")
@@ -173,12 +172,13 @@ async def clearall_command(client, message):
         await message.reply_text(
             text,
             reply_markup=menu,
-            parse_mode="MARKDOWN"
+            parse_mode=enums.ParseMode.MARKDOWN
         )
         logger.info("DEBUG: Menu sent successfully")
     except Exception as e:
         logger.error(f"Failed to send clearall menu: {e}")
         await message.reply_text("❌ An error occurred while building the menu.")
+
 # ============================================================
 # CALLBACKS (initiate)
 # ============================================================
@@ -194,7 +194,7 @@ async def clear_media_all_cb(client, query):
             [InlineKeyboardButton("✅ Yes, Delete All", callback_data="confirm_media_all")],
             [InlineKeyboardButton("❌ Cancel", callback_data="clear_cancel")]
         ]),
-        parse_mode="MARKDOWN"
+        parse_mode=enums.ParseMode.MARKDOWN
     )
     await query.answer()
 
@@ -209,7 +209,7 @@ async def clear_user_all_cb(client, query):
             [InlineKeyboardButton("✅ Yes, Delete All", callback_data="confirm_user_all")],
             [InlineKeyboardButton("❌ Cancel", callback_data="clear_cancel")]
         ]),
-        parse_mode="MARKDOWN"
+        parse_mode=enums.ParseMode.MARKDOWN
     )
     await query.answer()
 
@@ -229,7 +229,7 @@ async def clear_single_cb(client, query):
             [InlineKeyboardButton("✅ Yes, Delete", callback_data=f"confirm_single#{index}")],
             [InlineKeyboardButton("❌ Cancel", callback_data="clear_cancel")]
         ]),
-        parse_mode="MARKDOWN"
+        parse_mode=enums.ParseMode.MARKDOWN
     )
     await query.answer()
 
