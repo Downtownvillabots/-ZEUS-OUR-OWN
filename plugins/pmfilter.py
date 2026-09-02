@@ -1475,23 +1475,7 @@ async def auto_filter(client, msg, spoll=False):
                 if not files:
                     # ── Send NoResults to BIN channel with buttons (no token) ──
                     user_id = message.from_user.id if message.from_user else 0
-                    bin_buttons = InlineKeyboardMarkup([[
-                        InlineKeyboardButton("✅ ᴍᴀʀᴋ ᴀᴠᴀɪʟᴀʙʟᴇ ✅", callback_data="avail"),
-                        InlineKeyboardButton("📌 ɴᴏᴛ ʀᴇʟᴇᴀꜱᴇᴅ 📌", callback_data="nrel")
-                    ],[
-                        InlineKeyboardButton("❌ ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ ❌", callback_data="unav"),
-                        InlineKeyboardButton("🗑️ ᴄᴀɴᴄᴇʟ 🗑️", callback_data="cancel")
-                    ]])
-                    try:
-                        await client.send_message(
-                            chat_id=BIN_CHANNEL,
-                            text=script.NORSLTS.format(user_id, message.from_user.mention if message.from_user else "Unknown", search),
-                            reply_markup=bin_buttons,
-                            parse_mode=enums.ParseMode.HTML
-                        )
-                        logger.info("Sent NoResults to BIN channel with buttons")
-                    except Exception as e:
-                        logger.error(f"Failed to send to BIN: {e}")
+                
 
                     if settings.get("spell_check"):
                         ai_sts = await m.edit('🤖 ᴘʟᴇᴀꜱᴇ ᴡᴀɪᴛ, ᴀɪ ɪꜱ ᴄʜᴇᴄᴋɪɴɢ ʏᴏᴜʀ ꜱᴘᴇʟʟɪɴɢ...')
