@@ -945,6 +945,27 @@ async def reset_failed():
 
     return result.modified_count
 
+
+# ============================================================
+# RUN RESET
+# ============================================================
+    
+async def reset_all_state():
+    """
+    Clears ALL backup state records, making every file pending again.
+    Use this if you want to re-upload everything to a new channel.
+    """
+    collection = state_collection()
+    if collection is None:
+        return 0
+
+    # Option A: Delete all records (completely fresh start)
+    result = await collection.delete_many({})
+    return result.deleted_count
+
+    # Option B: Set all statuses back to PENDING (keeps metadata)
+    # result = await collection.update_many({}, {"$set": {"status": "PENDING", "updated_at": now()}})
+    # return result.modified_count
 # ============================================================
 # RUN HISTORY
 # ============================================================
@@ -2771,6 +2792,16 @@ def backup_keyboard():
         ],
         [
             InlineKeyboardButton(
+                "🔄 RESET STATE",
+                callback_data="dtv_backup_reset_state",
+            ),
+            InlineKeyboardButton(
+                "❌ CLEAR FAILURES",
+                callback_data="dtv_backup_clear_failures",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
                 "❌ FAILURES",
                 callback_data="dtv_backup_failures",
             ),
@@ -3100,6 +3131,32 @@ async def backup_callback(
             )
 
             return
+
+        # NEW: Reset all backup state (force re-upload everything)
+        if data == "dtv_backup_reset_state":
+            if STATE["running"]:
+                await query.answer(
+                    "⏸️ Stop the backup first before resetting state.",
+                    show_alert=True,
+                )
+                return
+
+            count = await reset_all_state()
+            await query.answer(
+                f"🔄 Reset {count} state records. All files will be re-uploaded on next start.",
+                show_alert=True,
+            )
+            return
+
+        # NEW: Clear only failed records (retry them)
+        if data == "dtv_backup_clear_failures":
+            count = await reset_failed()
+            await query.answer(
+                f"✅ Cleared {count} failed records. They will be retried on next start.",
+                show_alert=True,
+            )
+            return
+
 
         if data == "dtv_backup_reconcile":
             await query.answer(
