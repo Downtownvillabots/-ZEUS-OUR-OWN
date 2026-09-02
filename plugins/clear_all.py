@@ -1,65 +1,125 @@
 import logging
+import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from info import ADMINS, MULTIPLE_DB
-from database.ia_filterdb import (
-    DBS,          # list of media databases
-    COLLECTIONS,  # list of media collections
-    DB_LABELS,    # human-readable labels (Data-base-02, etc.)
-    MODELS,       # umongo models (not used for delete)
-)
+from database.ia_filterdb import DBS, COLLECTIONS, DB_LABELS
 from database.users_chats_db import db as user_db
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # ============================================================
-# HELPER: GET MEDIA COLLECTION INDEXES
+# HELPERS: PROGRESS BAR
 # ============================================================
 
-def get_media_collections():
-    """Return a list of (label, collection) for each media DB."""
-    return list(zip(DB_LABELS, COLLECTIONS))
+def progress_bar(current, total, length=20):
+    if total <= 0:
+        return "0%" + " " * length
+    percent = int(current / total * 100)
+    filled = int(length * percent / 100)
+    bar = "█" * filled + "░" * (length - filled)
+    return f"{bar} {percent}%"
 
 # ============================================================
-# CLEAR MEDIA DATABASE
+# HELPERS: DELETE IN BATCHES (WITH PROGRESS)
 # ============================================================
 
-async def clear_media_collection(collection, label):
-    """Delete all documents from a media collection and log."""
+async def clear_media_collection(client, query, collection, label):
+    """Delete all documents from a media collection in batches, showing progress."""
     try:
-        result = await collection.delete_many({})
-        logger.info(f"[CLEAR] Deleted {result.deleted_count} files from {label}.")
-        return result.deleted_count
+        total = await collection.count_documents({})
+        if total == 0:
+            logger.info(f"[CLEAR] {label} is already empty.")
+            await query.message.edit_text(f"✅ {label} is already empty.")
+            return 0
+
+        deleted = 0
+        batch_size = 1000
+        await query.message.edit_text(
+            f"🧹 Clearing {label}...\n\n"
+            f"<code>{progress_bar(0, total)}</code>\n"
+            f"Deleted: 0 / {total}"
+        )
+
+        while True:
+            # Fetch a batch of _ids
+            cursor = collection.find({}, {"_id": 1}).batch_size(batch_size).limit(batch_size)
+            ids = []
+            async for doc in cursor:
+                ids.append(doc["_id"])
+            if not ids:
+                break
+            result = await collection.delete_many({"_id": {"$in": ids}})
+            deleted += result.deleted_count
+            percent = progress_bar(deleted, total)
+            await query.message.edit_text(
+                f"🧹 Clearing {label}...\n\n"
+                f"<code>{percent}</code>\n"
+                f"Deleted: {deleted} / {total}"
+            )
+            await asyncio.sleep(0.5)  # small delay to avoid Telegram flood
+
+        logger.info(f"[CLEAR] Deleted {deleted} files from {label}.")
+        await query.message.edit_text(f"✅ Cleared {label}.\nTotal files removed: **{deleted}**")
+        return deleted
     except Exception as e:
         logger.error(f"[CLEAR] Failed to clear {label}: {e}")
+        await query.message.edit_text(f"❌ Failed to clear {label}: {e}")
         return 0
 
-async def clear_all_media():
-    """Clear all media collections."""
-    total = 0
-    for label, collection in get_media_collections():
-        count = await clear_media_collection(collection, label)
-        total += count
-    logger.info(f"[CLEAR] Cleared all media databases – total {total} files.")
-    return total
-
-# ============================================================
-# CLEAR USER DATABASE
-# ============================================================
-
-async def clear_user_collection(col, name):
-    """Delete all documents from a user collection and log."""
+async def clear_user_collection(client, query, col, name):
+    """Delete all documents from a user collection in batches, showing progress."""
     try:
-        result = await col.delete_many({})
-        logger.info(f"[CLEAR] Deleted {result.deleted_count} documents from {name}.")
-        return result.deleted_count
+        total = await col.count_documents({})
+        if total == 0:
+            logger.info(f"[CLEAR] {name} is already empty.")
+            return 0
+
+        deleted = 0
+        batch_size = 1000
+        await query.message.edit_text(
+            f"🧹 Clearing {name}...\n\n"
+            f"<code>{progress_bar(0, total)}</code>\n"
+            f"Deleted: 0 / {total}"
+        )
+
+        while True:
+            cursor = col.find({}, {"_id": 1}).batch_size(batch_size).limit(batch_size)
+            ids = []
+            async for doc in cursor:
+                ids.append(doc["_id"])
+            if not ids:
+                break
+            result = await col.delete_many({"_id": {"$in": ids}})
+            deleted += result.deleted_count
+            percent = progress_bar(deleted, total)
+            await query.message.edit_text(
+                f"🧹 Clearing {name}...\n\n"
+                f"<code>{percent}</code>\n"
+                f"Deleted: {deleted} / {total}"
+            )
+            await asyncio.sleep(0.5)
+
+        logger.info(f"[CLEAR] Deleted {deleted} documents from {name}.")
+        return deleted
     except Exception as e:
         logger.error(f"[CLEAR] Failed to clear {name}: {e}")
         return 0
 
-async def clear_user_db():
-    """Clear all user-related collections (users, groups, premium, etc.)."""
+async def clear_all_media(client, query):
+    """Clear all media collections with progress."""
+    total_files = 0
+    for idx, (label, collection) in enumerate(zip(DB_LABELS, COLLECTIONS)):
+        logger.info(f"[CLEAR] Starting clearing {label}.")
+        count = await clear_media_collection(client, query, collection, label)
+        total_files += count
+    logger.info(f"[CLEAR] Cleared all media databases – total {total_files} files.")
+    await query.message.edit_text(f"✅ All media databases cleared.\nTotal files removed: **{total_files}**")
+    return total_files
+
+async def clear_user_db(client, query):
+    """Clear all user-related collections with progress."""
     collections = {
         "users": user_db.col,
         "groups": user_db.grp,
@@ -73,25 +133,23 @@ async def clear_user_db():
         "movie_updates": user_db.movie_updates,
         "connections": user_db.connection,
     }
-    total = 0
+    total_docs = 0
     for name, col in collections.items():
-        count = await clear_user_collection(col, name)
-        total += count
-    logger.info(f"[CLEAR] Cleared user database – total {total} documents.")
-    return total
+        logger.info(f"[CLEAR] Starting clearing {name}.")
+        count = await clear_user_collection(client, query, col, name)
+        total_docs += count
+    logger.info(f"[CLEAR] Cleared user database – total {total_docs} documents.")
+    await query.message.edit_text(f"✅ User database cleared.\nTotal documents removed: **{total_docs}**")
+    return total_docs
 
 # ============================================================
 # MENU
 # ============================================================
 
 def build_clear_menu():
-    """Build inline keyboard for clear options."""
     buttons = []
-    # All media
     buttons.append([InlineKeyboardButton("🗑️ Clear ALL Media DBs", callback_data="clear_media_all")])
-    # User DB
     buttons.append([InlineKeyboardButton("🗑️ Clear USER DB", callback_data="clear_user_all")])
-    # Individual media DBs
     for idx, label in enumerate(DB_LABELS):
         buttons.append([InlineKeyboardButton(f"🗑️ Clear {label}", callback_data=f"clear_single#{idx}")])
     buttons.append([InlineKeyboardButton("❌ Close", callback_data="clear_close")])
@@ -112,7 +170,7 @@ async def clearall_command(client, message):
     )
 
 # ============================================================
-# CALLBACKS
+# CALLBACKS (initiate)
 # ============================================================
 
 @Client.on_callback_query(filters.regex(r"^clear_media_all$"))
@@ -165,7 +223,10 @@ async def clear_single_cb(client, query):
     )
     await query.answer()
 
-# Confirmation callbacks
+# ============================================================
+# CALLBACKS (confirm & execute)
+# ============================================================
+
 @Client.on_callback_query(filters.regex(r"^confirm_media_all$"))
 async def confirm_media_all_cb(client, query):
     if query.from_user.id not in ADMINS:
@@ -174,9 +235,7 @@ async def confirm_media_all_cb(client, query):
     logger.info(f"[CLEAR] Admin {query.from_user.id} confirmed clearing ALL media DBs.")
     await query.message.edit_text("🧹 Clearing all media databases...")
     await query.answer("Clearing...", show_alert=False)
-    total = await clear_all_media()
-    await query.message.edit_text(f"✅ Cleared all media databases.\nTotal files removed: **{total}**")
-    await query.answer("✅ Done!")
+    await clear_all_media(client, query)
 
 @Client.on_callback_query(filters.regex(r"^confirm_user_all$"))
 async def confirm_user_all_cb(client, query):
@@ -186,9 +245,7 @@ async def confirm_user_all_cb(client, query):
     logger.info(f"[CLEAR] Admin {query.from_user.id} confirmed clearing USER DB.")
     await query.message.edit_text("🧹 Clearing user database...")
     await query.answer("Clearing...", show_alert=False)
-    total = await clear_user_db()
-    await query.message.edit_text(f"✅ Cleared user database.\nTotal documents removed: **{total}**")
-    await query.answer("✅ Done!")
+    await clear_user_db(client, query)
 
 @Client.on_callback_query(filters.regex(r"^confirm_single#(\d+)$"))
 async def confirm_single_cb(client, query):
@@ -204,9 +261,7 @@ async def confirm_single_cb(client, query):
     logger.info(f"[CLEAR] Admin {query.from_user.id} confirmed clearing {label}.")
     await query.message.edit_text(f"🧹 Clearing {label}...")
     await query.answer("Clearing...", show_alert=False)
-    count = await clear_media_collection(collection, label)
-    await query.message.edit_text(f"✅ Cleared {label}.\nTotal files removed: **{count}**")
-    await query.answer("✅ Done!")
+    await clear_media_collection(client, query, collection, label)
 
 @Client.on_callback_query(filters.regex(r"^clear_cancel$"))
 async def clear_cancel_cb(client, query):
