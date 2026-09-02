@@ -19,7 +19,6 @@ from Script import script
 from pyrogram.errors.exceptions.bad_request_400 import MediaEmpty, PhotoInvalidDimensions, WebpageMediaEmpty
 from database.refer import referdb
 from database.users_chats_db import db
-from plugins.request_handler import add_request
 import asyncio
 import re
 import math
@@ -370,7 +369,7 @@ async def advantage_spoll_choker(bot, query):
         reqstr = await bot.get_users(reqstr1)
         if NO_RESULTS_MSG:
             # Generate a unique token (no database)
-            req_token = add_request(reqstr1, movie, query.message.chat.id)
+            req_token = _add_request(reqstr1, movie, query.message.chat.id)
 
             # Premium multi‑button keyboard
             bin_buttons = InlineKeyboardMarkup([[
@@ -1784,7 +1783,7 @@ async def advantage_spell_chok(client, message):
 
         # ── Send to BIN channel with request buttons ──
         user_id = message.from_user.id if message.from_user else 0
-        req_token = add_request(user_id, search, message.chat.id)
+        req_token = _add_request(user_id, search, message.chat.id)
         bin_buttons = InlineKeyboardMarkup([[
             InlineKeyboardButton("✅ ᴍᴀʀᴋ ᴀᴠᴀɪʟᴀʙʟᴇ ✅", callback_data=f"avail_{req_token}"),
             InlineKeyboardButton("📌 ɴᴏᴛ ʀᴇʟᴇᴀꜱᴇᴅ 📌", callback_data=f"nrel_{req_token}")
@@ -1812,4 +1811,144 @@ async def advantage_spell_chok(client, message):
         except Exception:
             pass
         return
-    
+
+# ============================================================
+# REQUEST HANDLER (added directly to pmfilter for compatibility)
+# ============================================================
+
+import uuid as _uuid
+
+_request_store = {}
+
+def _add_request(user_id, search, chat_id):
+    token = _uuid.uuid4().hex[:8]
+    _request_store[token] = (int(user_id), str(search), int(chat_id))
+    return token
+
+def _get_request(token):
+    return _request_store.get(token)
+
+def _remove_request(token):
+    _request_store.pop(token, None)
+
+@Client.on_callback_query(filters.regex(r"^avail_"))
+async def _mark_available(client, query):
+    if query.from_user.id not in ADMINS:
+        await query.answer("❌ Only admins can do this.", show_alert=True)
+        return
+    token = query.data.split("_", 1)[1]
+    req = _get_request(token)
+    if not req:
+        await query.answer("❌ Request expired or already handled.", show_alert=True)
+        return
+    user_id, search, chat_id = req
+    _remove_request(token)
+    try:
+        await client.send_message(
+            user_id,
+            script.REQUEST_AVAILABLE.format(query=search),
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🎬 Get File", callback_data=f"getfile_{token}")
+            ]]),
+            parse_mode=enums.ParseMode.HTML
+        )
+    except Exception:
+        pass
+    await client.send_message(
+        LOG_CHANNEL,
+        f"✅ <b>Marked as available</b>\n\n🔍 <code>{search}</code>\n👤 <code>{user_id}</code>",
+        parse_mode=enums.ParseMode.HTML
+    )
+    await query.answer("✅ Done!", show_alert=False)
+
+@Client.on_callback_query(filters.regex(r"^nrel_"))
+async def _mark_not_released(client, query):
+    if query.from_user.id not in ADMINS:
+        await query.answer("❌ Only admins can do this.", show_alert=True)
+        return
+    token = query.data.split("_", 1)[1]
+    req = _get_request(token)
+    if not req:
+        await query.answer("❌ Request expired.", show_alert=True)
+        return
+    user_id, search, chat_id = req
+    _remove_request(token)
+    try:
+        await client.send_message(
+            user_id,
+            script.REQUEST_NOT_RELEASED.format(query=search),
+            parse_mode=enums.ParseMode.HTML
+        )
+    except Exception:
+        pass
+    await client.send_message(
+        LOG_CHANNEL,
+        f"📌 <b>Not released yet</b>\n\n🔍 <code>{search}</code>\n👤 <code>{user_id}</code>",
+        parse_mode=enums.ParseMode.HTML
+    )
+    await query.answer("📌 Done!", show_alert=False)
+
+@Client.on_callback_query(filters.regex(r"^unav_"))
+async def _mark_unavailable(client, query):
+    if query.from_user.id not in ADMINS:
+        await query.answer("❌ Only admins can do this.", show_alert=True)
+        return
+    token = query.data.split("_", 1)[1]
+    req = _get_request(token)
+    if not req:
+        await query.answer("❌ Request expired.", show_alert=True)
+        return
+    user_id, search, chat_id = req
+    _remove_request(token)
+    try:
+        await client.send_message(
+            user_id,
+            script.REQUEST_UNAVAILABLE.format(query=search),
+            parse_mode=enums.ParseMode.HTML
+        )
+    except Exception:
+        pass
+    await client.send_message(
+        LOG_CHANNEL,
+        f"❌ <b>Unavailable</b>\n\n🔍 <code>{search}</code>\n👤 <code>{user_id}</code>",
+        parse_mode=enums.ParseMode.HTML
+    )
+    await query.answer("❌ Done!", show_alert=False)
+
+@Client.on_callback_query(filters.regex(r"^cancel_"))
+async def _cancel_request(client, query):
+    if query.from_user.id not in ADMINS:
+        await query.answer("❌ Only admins can do this.", show_alert=True)
+        return
+    token = query.data.split("_", 1)[1]
+    req = _get_request(token)
+    if not req:
+        await query.answer("❌ Request expired.", show_alert=True)
+        return
+    _remove_request(token)
+    await query.answer("🗑️ Cancelled!", show_alert=False)
+
+@Client.on_callback_query(filters.regex(r"^getfile_"))
+async def _send_file_to_user(client, query):
+    token = query.data.split("_", 1)[1]
+    req = _get_request(token)
+    if not req:
+        await query.answer("❌ Request expired.", show_alert=True)
+        return
+    user_id, search, chat_id = req
+    files, offset, total = await get_search_results(user_id, search, max_results=1)
+    if not files:
+        await query.answer("❌ File not found yet!", show_alert=True)
+        return
+    file = files[0]
+    try:
+        await client.send_cached_media(
+            user_id,
+            file.file_id,
+            caption=f"🎬 <b>{file.file_name}</b>\n\n🔍 <i>{search}</i>",
+            parse_mode=enums.ParseMode.HTML
+        )
+        await query.answer("✅ File sent!", show_alert=False)
+        _remove_request(token)
+    except Exception:
+        await query.answer("❌ Failed to send.", show_alert=True)
